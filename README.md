@@ -112,6 +112,9 @@ pnpm --filter @genoma/web lint
 | POST | `/api/v1/compare` | Similarity between two completed analyses |
 | POST | `/api/v1/mutations` | Chunk mutations between baseline and current |
 | POST | `/api/v1/galaxy` | Multi-file galaxy nodes from completed analyses |
+| GET | `/api/v1/evolution` | List recent evolution series |
+| POST | `/api/v1/evolution` | Create evolution series from completed analyses |
+| GET | `/api/v1/evolution/:id` | Evolution series with ordered snapshots |
 | POST | `/api/v1/export` | Reserved (later phase) |
 
 Progress events are real pipeline stages, not animations:

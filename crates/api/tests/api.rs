@@ -237,3 +237,46 @@ async fn galaxy_returns_nodes_for_completed_analyses() {
     .await;
     assert_eq!(empty_status, StatusCode::BAD_REQUEST);
 }
+
+#[tokio::test]
+async fn evolution_series_round_trip() {
+    let app = test_app().await;
+    let (_, a) = json_request(&app, "POST", "/api/v1/analyses/demo?file=sample.txt").await;
+    let (_, b) = json_request(&app, "POST", "/api/v1/analyses/demo?file=sample.bin").await;
+    let a_id = a["id"].as_str().expect("a id");
+    let b_id = b["id"].as_str().expect("b id");
+    wait_complete(&app, a_id).await;
+    wait_complete(&app, b_id).await;
+
+    let (status, created) = post_json(
+        &app,
+        "/api/v1/evolution",
+        serde_json::json!({
+            "name": "demo-series",
+            "snapshots": [
+                { "analysis_id": a_id, "version_label": "v1" },
+                { "analysis_id": b_id, "version_label": "v2" }
+            ]
+        }),
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(created["name"], "demo-series");
+    let series_id = created["id"].as_str().expect("series id");
+    assert_eq!(created["snapshots"].as_array().unwrap().len(), 2);
+
+    let (get_status, fetched) =
+        json_request(&app, "GET", &format!("/api/v1/evolution/{series_id}")).await;
+    assert_eq!(get_status, StatusCode::OK);
+    assert_eq!(fetched["id"], series_id);
+    assert_eq!(fetched["snapshots"][0]["version_label"], "v1");
+    assert_eq!(fetched["snapshots"][1]["analysis_id"], b_id);
+
+    let (list_status, list) = json_request(&app, "GET", "/api/v1/evolution").await;
+    assert_eq!(list_status, StatusCode::OK);
+    assert!(list
+        .as_array()
+        .unwrap()
+        .iter()
+        .any(|item| item["id"] == series_id));
+}

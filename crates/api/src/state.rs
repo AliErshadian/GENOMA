@@ -7,6 +7,7 @@ use tracing::warn;
 use uuid::Uuid;
 
 use crate::config::AppConfig;
+use crate::evolution::EvolutionStore;
 use crate::progress::ProgressHub;
 use crate::storage::FsBlobStore;
 use crate::store::AnalysisStore;
@@ -15,6 +16,7 @@ use crate::store::AnalysisStore;
 pub struct AppState {
     pub config: AppConfig,
     pub store: AnalysisStore,
+    pub evolution: EvolutionStore,
     pub blobs: FsBlobStore,
     pub progress: ProgressHub,
     pub redis: Option<redis::aio::MultiplexedConnection>,
@@ -44,7 +46,8 @@ impl AppState {
         let rate = crate::rate::RateGate::new(config.rate_limit_per_minute);
         Ok(Self {
             config,
-            store: AnalysisStore::new(postgres),
+            store: AnalysisStore::new(postgres.clone()),
+            evolution: EvolutionStore::new(postgres),
             blobs,
             progress: ProgressHub::new(),
             redis,
