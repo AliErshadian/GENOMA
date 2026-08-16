@@ -3,6 +3,10 @@ import type {
   Anomaly,
   CompareRequest,
   CompareResponse,
+  CreateEvolutionRequest,
+  EvolutionGitRequest,
+  EvolutionSeries,
+  EvolutionSnapshotInput,
   FileDna,
   GalaxyRequest,
   GalaxyResponse,
@@ -119,6 +123,41 @@ export function fetchGalaxy(analysisIds: string[]): Promise<GalaxyResponse> {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ analysis_ids: analysisIds } satisfies GalaxyRequest),
+  });
+}
+
+export function createEvolution(
+  snapshots: EvolutionSnapshotInput[],
+  name?: string,
+): Promise<EvolutionSeries> {
+  return request<EvolutionSeries>("/api/v1/evolution", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ name, snapshots } satisfies CreateEvolutionRequest),
+  });
+}
+
+export function getEvolution(id: string): Promise<EvolutionSeries> {
+  return request<EvolutionSeries>(`/api/v1/evolution/${id}`);
+}
+
+export function listEvolution(): Promise<EvolutionSeries[]> {
+  return request<EvolutionSeries[]>("/api/v1/evolution");
+}
+
+export function importEvolutionFromGit(
+  repo: string,
+  path: string,
+  maxCommits = 8,
+): Promise<EvolutionSeries> {
+  return request<EvolutionSeries>("/api/v1/evolution/git", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      repo,
+      path,
+      max_commits: maxCommits,
+    } satisfies EvolutionGitRequest),
   });
 }
 

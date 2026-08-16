@@ -1,6 +1,8 @@
 pub mod config;
 pub mod db;
 pub mod error;
+pub mod evolution;
+pub mod git_import;
 pub mod jobs;
 pub mod persist;
 pub mod progress;
@@ -24,9 +26,9 @@ use tower_http::trace::TraceLayer;
 use crate::config::AppConfig;
 use crate::rate::rate_middleware;
 use crate::routes::{
-    compare_analyses, create_analysis, create_demo, detect_mutations, galaxy, get_analysis,
-    get_anomalies, get_dna, health, list_analyses, list_demos, not_implemented, progress_latest,
-    progress_sse,
+    compare_analyses, create_analysis, create_demo, create_evolution, create_evolution_from_git,
+    detect_mutations, galaxy, get_analysis, get_anomalies, get_dna, get_evolution, health,
+    list_analyses, list_demos, list_evolution, not_implemented, progress_latest, progress_sse,
 };
 use crate::state::AppState;
 
@@ -57,8 +59,10 @@ pub fn app(state: AppState) -> Router {
         .route("/api/v1/compare", post(compare_analyses))
         .route("/api/v1/mutations", post(detect_mutations))
         .route("/api/v1/galaxy", post(galaxy))
+        .route("/api/v1/evolution", get(list_evolution).post(create_evolution))
+        .route("/api/v1/evolution/git", post(create_evolution_from_git))
+        .route("/api/v1/evolution/{id}", get(get_evolution))
         .route("/api/v1/export", post(not_implemented))
-        .route("/api/v1/evolution/{id}", get(not_implemented))
         .layer(DefaultBodyLimit::max(max))
         .layer(middleware::from_fn_with_state(
             state.clone(),

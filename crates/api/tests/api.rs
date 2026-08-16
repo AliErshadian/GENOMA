@@ -12,7 +12,21 @@ fn workspace_root() -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../..")
 }
 
+fn ensure_demo_evolve_repo() {
+    let repo = workspace_root().join("data/repos/demo-evolve");
+    if repo.join(".git").is_dir() || repo.join("HEAD").is_file() {
+        return;
+    }
+    let script = workspace_root().join("scripts/seed-demo-evolve.sh");
+    let status = std::process::Command::new("bash")
+        .arg(&script)
+        .status()
+        .expect("run seed-demo-evolve.sh");
+    assert!(status.success(), "failed to seed demo-evolve repo");
+}
+
 async fn test_app() -> axum::Router {
+    ensure_demo_evolve_repo();
     let mut config = AppConfig::for_tests(workspace_root());
     config.blob_dir = std::env::temp_dir().join(format!("genoma-test-{}", uuid::Uuid::new_v4()));
     let state = AppState::with_backends(config, None, None)
@@ -236,4 +250,74 @@ async fn galaxy_returns_nodes_for_completed_analyses() {
     )
     .await;
     assert_eq!(empty_status, StatusCode::BAD_REQUEST);
+}
+
+#[tokio::test]
+async fn evolution_series_round_trip() {
+    let app = test_app().await;
+    let (_, a) = json_request(&app, "POST", "/api/v1/analyses/demo?file=sample.txt").await;
+    let (_, b) = json_request(&app, "POST", "/api/v1/analyses/demo?file=sample.bin").await;
+    let a_id = a["id"].as_str().expect("a id");
+    let b_id = b["id"].as_str().expect("b id");
+    wait_complete(&app, a_id).await;
+    wait_complete(&app, b_id).await;
+
+    let (status, created) = post_json(
+        &app,
+        "/api/v1/evolution",
+        serde_json::json!({
+            "name": "demo-series",
+            "snapshots": [
+                { "analysis_id": a_id, "version_label": "v1" },
+                { "analysis_id": b_id, "version_label": "v2" }
+            ]
+        }),
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(created["name"], "demo-series");
+    let series_id = created["id"].as_str().expect("series id");
+    assert_eq!(created["snapshots"].as_array().unwrap().len(), 2);
+
+    let (get_status, fetched) =
+        json_request(&app, "GET", &format!("/api/v1/evolution/{series_id}")).await;
+    assert_eq!(get_status, StatusCode::OK);
+    assert_eq!(fetched["id"], series_id);
+    assert_eq!(fetched["snapshots"][0]["version_label"], "v1");
+    assert_eq!(fetched["snapshots"][1]["analysis_id"], b_id);
+
+    let (list_status, list) = json_request(&app, "GET", "/api/v1/evolution").await;
+    assert_eq!(list_status, StatusCode::OK);
+    assert!(list
+        .as_array()
+        .unwrap()
+        .iter()
+        .any(|item| item["id"] == series_id));
+}
+
+#[tokio::test]
+async fn evolution_git_import_builds_series_from_demo_repo() {
+    let app = test_app().await;
+    let (status, body) = post_json(
+        &app,
+        "/api/v1/evolution/git",
+        serde_json::json!({
+            "repo": "demo-evolve",
+            "path": "sample.txt",
+            "max_commits": 3
+        }),
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK, "{body}");
+    let snapshots = body["snapshots"].as_array().expect("snapshots");
+    assert!(snapshots.len() >= 3);
+    assert!(body["name"].as_str().unwrap().contains("demo-evolve"));
+
+    let (bad_status, _) = post_json(
+        &app,
+        "/api/v1/evolution/git",
+        serde_json::json!({ "repo": "../etc", "path": "sample.txt" }),
+    )
+    .await;
+    assert_eq!(bad_status, StatusCode::BAD_REQUEST);
 }

@@ -27,5 +27,8 @@ Without PostgreSQL, jobs live in memory (refresh after restart loses them). With
 - `POST /api/v1/compare` — body `{ "left_id", "right_id" }`; returns similarity breakdown for two completed analyses (404 if missing, 409 if either incomplete)
 - `POST /api/v1/mutations` — body `{ "baseline_id", "current_id" }`; returns chunk-level mutations (404 if missing, 409 if either incomplete)
 - `POST /api/v1/galaxy` — body `{ "analysis_ids": Uuid[] }` (1–50, deduped); returns multi-file galaxy nodes with `cluster_id`, classical MDS `position`, and similarity `links` (404 if missing, 409 if any incomplete)
+- `GET /api/v1/evolution` — list recent evolution series (cap 50)
+- `POST /api/v1/evolution` — body `{ "name"?, "snapshots": [{ "analysis_id", "version_label" }] }` (1–20); creates a series from completed analyses
+- `GET /api/v1/evolution/{id}` — evolution series with ordered snapshots (404 if missing)
+- `POST /api/v1/evolution/git` — body `{ "repo", "path", "max_commits"? }`; imports commits from an allowlisted repo under `data/repos/` (cap 10), analyzes each revision, returns a series
 - `POST /api/v1/export` — 501
-- `GET /api/v1/evolution/{id}` — 501

@@ -565,6 +565,240 @@ pub async fn list_demos(State(state): State<AppState>) -> ApiResult<Json<Vec<Str
     Ok(Json(names))
 }
 
+#[derive(Deserialize)]
+pub struct EvolutionSnapshotInput {
+    pub analysis_id: Uuid,
+    pub version_label: String,
+}
+
+#[derive(Deserialize)]
+pub struct CreateEvolutionRequest {
+    pub name: Option<String>,
+    pub snapshots: Vec<EvolutionSnapshotInput>,
+}
+
+#[derive(Serialize)]
+pub struct EvolutionSnapshotResponse {
+    pub id: Uuid,
+    pub analysis_id: Uuid,
+    pub version_label: String,
+    pub file_name: String,
+    pub created_at: chrono::DateTime<Utc>,
+}
+
+#[derive(Serialize)]
+pub struct EvolutionSeriesResponse {
+    pub id: Uuid,
+    pub name: String,
+    pub created_at: chrono::DateTime<Utc>,
+    pub snapshots: Vec<EvolutionSnapshotResponse>,
+}
+
+impl From<crate::evolution::EvolutionSeriesRecord> for EvolutionSeriesResponse {
+    fn from(series: crate::evolution::EvolutionSeriesRecord) -> Self {
+        Self {
+            id: series.id,
+            name: series.name,
+            created_at: series.created_at,
+            snapshots: series
+                .snapshots
+                .into_iter()
+                .map(|snapshot| EvolutionSnapshotResponse {
+                    id: snapshot.id,
+                    analysis_id: snapshot.analysis_id,
+                    version_label: snapshot.version_label,
+                    file_name: snapshot.file_name,
+                    created_at: snapshot.created_at,
+                })
+                .collect(),
+        }
+    }
+}
+
+pub async fn create_evolution(
+    State(state): State<AppState>,
+    Json(body): Json<CreateEvolutionRequest>,
+) -> ApiResult<Json<EvolutionSeriesResponse>> {
+    if body.snapshots.is_empty() {
+        return Err(ApiError::bad_request("snapshots must not be empty"));
+    }
+    if body.snapshots.len() > 20 {
+        return Err(ApiError::bad_request("snapshots capped at 20"));
+    }
+
+    let series_id = Uuid::new_v4();
+    let created_at = Utc::now();
+    let mut seen = std::collections::HashSet::new();
+    let mut snapshots = Vec::with_capacity(body.snapshots.len());
+
+    for (index, input) in body.snapshots.into_iter().enumerate() {
+        if !seen.insert(input.analysis_id) {
+            continue;
+        }
+        let record = state
+            .store
+            .get(input.analysis_id)
+            .await
+            .ok_or_else(|| {
+                ApiError::not_found(format!("analysis not found: {}", input.analysis_id))
+            })?;
+        if record.status != Stage::Complete || record.dna.is_none() {
+            return Err(ApiError::conflict(format!(
+                "analysis is not complete: {}",
+                input.analysis_id
+            )));
+        }
+        let label = {
+            let trimmed = input.version_label.trim();
+            if trimmed.is_empty() {
+                format!("v{}", index + 1)
+            } else {
+                trimmed.to_string()
+            }
+        };
+        snapshots.push(crate::evolution::EvolutionSnapshotRecord {
+            id: Uuid::new_v4(),
+            series_id,
+            analysis_id: input.analysis_id,
+            version_label: label,
+            file_name: record.original_name,
+            created_at: created_at + chrono::Duration::milliseconds(index as i64),
+        });
+    }
+
+    if snapshots.is_empty() {
+        return Err(ApiError::bad_request("snapshots must not be empty"));
+    }
+
+    let name = body
+        .name
+        .as_deref()
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .map(ToOwned::to_owned)
+        .unwrap_or_else(|| format!("series-{}", &series_id.to_string()[..8]));
+
+    let series = crate::evolution::EvolutionSeriesRecord {
+        id: series_id,
+        name,
+        created_at,
+        snapshots,
+    };
+    state.evolution.insert(series.clone()).await;
+    Ok(Json(series.into()))
+}
+
+pub async fn get_evolution(
+    State(state): State<AppState>,
+    Path(id): Path<Uuid>,
+) -> ApiResult<Json<EvolutionSeriesResponse>> {
+    let series = state
+        .evolution
+        .get(id)
+        .await
+        .ok_or_else(|| ApiError::not_found("evolution series not found"))?;
+    Ok(Json(series.into()))
+}
+
+pub async fn list_evolution(
+    State(state): State<AppState>,
+) -> ApiResult<Json<Vec<EvolutionSeriesResponse>>> {
+    let series = state.evolution.list(50).await;
+    Ok(Json(series.into_iter().map(Into::into).collect()))
+}
+
+#[derive(Deserialize)]
+pub struct EvolutionGitRequest {
+    pub repo: String,
+    pub path: String,
+    pub max_commits: Option<usize>,
+}
+
+pub async fn create_evolution_from_git(
+    State(state): State<AppState>,
+    Json(body): Json<EvolutionGitRequest>,
+) -> ApiResult<Json<EvolutionSeriesResponse>> {
+    let repo = crate::git_import::resolve_repo(&state.config.git_repos_dir, &body.repo)?;
+    let max_commits = body.max_commits.unwrap_or(8).min(10);
+    let history = crate::git_import::read_file_history(&repo, &body.path, max_commits)?;
+
+    let file_stem = std::path::Path::new(&body.path)
+        .file_name()
+        .and_then(|value| value.to_str())
+        .unwrap_or("sample.txt");
+    let mut snapshot_inputs = Vec::with_capacity(history.len());
+
+    for entry in &history {
+        let id = Uuid::new_v4();
+        let filename = format!("{file_stem}");
+        let storage_key = object_key(id, &filename);
+        state.blobs.put_bytes(&storage_key, &entry.bytes).await?;
+        let size = entry.bytes.len() as u64;
+        let label = if entry.subject.len() > 40 {
+            entry.short.clone()
+        } else {
+            format!("{} · {}", entry.short, entry.subject)
+        };
+        let record = AnalysisRecord {
+            id,
+            status: Stage::Queued,
+            original_name: filename,
+            size_bytes: size,
+            mime_type: Some(sniff_mime(file_stem, None)),
+            storage_key,
+            config: state.config.default_analysis.clone(),
+            error: None,
+            created_at: Utc::now(),
+            completed_at: None,
+            dna: None,
+            anomalies: Vec::new(),
+            progress: Some(analysis_engine::ProgressEvent {
+                stage: Stage::Queued,
+                progress: 0.0,
+                processed_bytes: 0,
+                total_bytes: Some(size),
+                message: format!("Queued git revision {}", entry.short),
+            }),
+        };
+        state.store.insert(record).await;
+        spawn_analysis_job(state.clone(), id);
+        wait_analysis_complete(&state, id).await?;
+        snapshot_inputs.push(EvolutionSnapshotInput {
+            analysis_id: id,
+            version_label: label,
+        });
+    }
+
+    create_evolution(
+        State(state),
+        Json(CreateEvolutionRequest {
+            name: Some(format!("{}:{}", body.repo, body.path)),
+            snapshots: snapshot_inputs,
+        }),
+    )
+    .await
+}
+
+async fn wait_analysis_complete(state: &AppState, id: Uuid) -> ApiResult<()> {
+    for _ in 0..200 {
+        tokio::time::sleep(Duration::from_millis(50)).await;
+        if let Some(record) = state.store.get(id).await {
+            match record.status {
+                Stage::Complete => return Ok(()),
+                Stage::Failed => {
+                    return Err(ApiError::internal(
+                        record
+                            .error
+                            .unwrap_or_else(|| "analysis failed".to_string()),
+                    ));
+                }
+                _ => continue,
+            }
+        }
+    }
+    Err(ApiError::internal("timed out waiting for analysis"))
+}
+
 pub async fn not_implemented() -> ApiError {
     ApiError::new(
         axum::http::StatusCode::NOT_IMPLEMENTED,

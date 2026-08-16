@@ -13,6 +13,7 @@ pub struct AppConfig {
     pub blob_dir: PathBuf,
     pub pi_digits_path: PathBuf,
     pub demo_dir: PathBuf,
+    pub git_repos_dir: PathBuf,
     pub max_upload_bytes: u64,
     pub cors_origin: String,
     pub default_analysis: AnalysisConfig,
@@ -39,6 +40,7 @@ impl AppConfig {
                 "./data/pi/pi-digits.bin",
             )),
             demo_dir: PathBuf::from(env_or("GENOMA_DEMO_DIR", "./data/demos")),
+            git_repos_dir: PathBuf::from(env_or("GENOMA_GIT_REPOS_DIR", "./data/repos")),
             max_upload_bytes: env_or("GENOMA_MAX_UPLOAD_BYTES", "2147483648")
                 .parse()
                 .unwrap_or(2 * 1024 * 1024 * 1024),
@@ -74,6 +76,7 @@ impl AppConfig {
             blob_dir: root.join("uploads"),
             pi_digits_path: root.join("data/pi/pi-digits.bin"),
             demo_dir: root.join("data/demos"),
+            git_repos_dir: root.join("data/repos"),
             max_upload_bytes: 32 * 1024 * 1024,
             cors_origin: "http://localhost:3000".into(),
             default_analysis: AnalysisConfig::default().with_chunk_size(ChunkSize::Kb4),

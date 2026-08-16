@@ -151,6 +151,37 @@ export interface GalaxyResponse {
   links: GalaxyLink[];
 }
 
+export interface EvolutionSnapshotInput {
+  analysis_id: string;
+  version_label: string;
+}
+
+export interface CreateEvolutionRequest {
+  name?: string;
+  snapshots: EvolutionSnapshotInput[];
+}
+
+export interface EvolutionSnapshot {
+  id: string;
+  analysis_id: string;
+  version_label: string;
+  file_name: string;
+  created_at: string;
+}
+
+export interface EvolutionSeries {
+  id: string;
+  name: string;
+  created_at: string;
+  snapshots: EvolutionSnapshot[];
+}
+
+export interface EvolutionGitRequest {
+  repo: string;
+  path: string;
+  max_commits?: number;
+}
+
 export interface FileSummary {
   entropy: number;
   complexity: number;
