@@ -36,3 +36,7 @@ Workspace overlays: hover inspect (block #, offset, size, entropy, complexity, r
 - Interaction: orbit camera; click a node to open that analysis organism
 
 Node colors follow a fixed cluster palette derived from semantic colors.
+
+## Evolution timeline
+
+`/analyze/evolution` builds a linear series of completed analyses (version labels) and compares adjacent snapshots with existing similarity / mutation endpoints. Selecting a timeline node pairs it with the next version; “Open organism” jumps to that analysis’s 3D workspace.
