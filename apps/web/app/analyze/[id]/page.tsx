@@ -71,6 +71,7 @@ export default function AnalysisWorkspacePage() {
           anomalies={anomalies}
           highlighted={selected}
           onSelect={setSelected}
+          showControls
         />
       ) : (
         <div className="flex h-full items-center justify-center">

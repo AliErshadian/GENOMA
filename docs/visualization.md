@@ -16,6 +16,13 @@ Every visual property is a deterministic function of Digital DNA. The renderer d
 
 Particle positions: Fibonacci sphere per chunk, radius from visual DNA, pull-to-centroid from repetition (`cluster_strength`). Links connect nearest neighbors in raw feature space.
 
-Hierarchical zoom in Phase 1: selecting a cluster isolates it (others dim). Camera orbit/pan/zoom via OrbitControls. Deeper byte-region descent is later.
+Hierarchical zoom has two levels (byte-region descent is later):
+
+- **FILE:** default camera pose `[0, 0.4, 4.6]` looking at the origin; all clusters visible.
+- **BLOCK:** camera lerps (~0.6s) to the selected cluster center; other particles dim; non-neighbor links hide. Selecting another block interpolates to that cluster. Reset (button or double-click empty space) returns to FILE.
+
+Particles orbit on deterministic axes seeded from `hash01(chunk, i)` and `particle_velocity`. Anomaly chunks add radial distortion and a slow red pulse. Instance colors update on highlight/hover/anomaly pulse, not every frame. Particle budget is capped at 8000 with frustum culling.
+
+Workspace overlays: hover inspect (block #, offset, size, entropy, complexity, repetition, π offset) and layer toggles (Particles / Links / Core / Anomalies). Turning Anomalies off hides red-distorted particles.
 
 Galaxy mode is not implemented in this phase and is not faked.
