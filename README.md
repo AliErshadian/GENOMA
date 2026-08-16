@@ -109,7 +109,8 @@ pnpm --filter @genoma/web lint
 | POST | `/api/v1/analyses/demo` | Analyze a bundled demo file |
 | GET | `/api/v1/dna/:id` | Full Digital DNA |
 | GET | `/api/v1/anomalies/:id` | Statistical anomalies |
-| POST | `/api/v1/compare` | Reserved (Phase 4 UI) |
+| POST | `/api/v1/compare` | Similarity between two completed analyses |
+| POST | `/api/v1/mutations` | Chunk mutations between baseline and current |
 | POST | `/api/v1/export` | Reserved (later phase) |
 
 Progress events are real pipeline stages, not animations:
@@ -150,7 +151,7 @@ Default posture is temporary local analysis. Cloud retention, if used later, mus
 1. Engine + vertical slice (this release)
 2. Hardened API, persistence, progress
 3. Immersive 3D organism
-4. Comparison, mutation, anomaly workspace
+4. Comparison, mutation, anomaly workspace — done
 5. Galaxy mode / multi-file embedding
 6. Evolution / Git snapshots
 7. ML experiments, auth, collaboration

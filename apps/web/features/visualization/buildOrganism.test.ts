@@ -73,4 +73,15 @@ describe("buildOrganism", () => {
     expect(anomalous.some((particle) => particle.anomaly >= 0.35)).toBe(true);
     expect(model.fileFocus).toEqual([0, 0, 0]);
   });
+
+  it("attaches mutation impact per chunk", () => {
+    const dna = sampleDna();
+    const model = buildOrganism(
+      dna,
+      [],
+      [{ chunk_index: 0, offset: 0, impact: 0.42, confidence: 0.7, distance: 0.2 }],
+    );
+    expect(model.particles.some((particle) => particle.mutation === 0.42)).toBe(true);
+    expect(model.clusters.find((cluster) => cluster.chunk.index === 0)?.mutation).toBe(0.42);
+  });
 });

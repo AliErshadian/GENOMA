@@ -3,6 +3,7 @@ export type VizLayers = {
   links: boolean;
   core: boolean;
   anomalies: boolean;
+  mutations: boolean;
 };
 
 export const DEFAULT_LAYERS: VizLayers = {
@@ -10,4 +11,5 @@ export const DEFAULT_LAYERS: VizLayers = {
   links: true,
   core: true,
   anomalies: true,
+  mutations: true,
 };

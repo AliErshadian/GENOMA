@@ -225,6 +225,93 @@ pub async fn get_anomalies(
     Ok(Json(record.anomalies))
 }
 
+#[derive(Deserialize)]
+pub struct CompareRequest {
+    pub left_id: Uuid,
+    pub right_id: Uuid,
+}
+
+#[derive(Serialize)]
+pub struct CompareResponse {
+    pub left_id: Uuid,
+    pub right_id: Uuid,
+    pub left_name: String,
+    pub right_name: String,
+    pub similarity: analysis_engine::SimilarityBreakdown,
+}
+
+async fn load_completed_dna(
+    state: &AppState,
+    id: Uuid,
+    label: &str,
+) -> ApiResult<(String, dna_engine::FileDna)> {
+    let record = state
+        .store
+        .get(id)
+        .await
+        .ok_or_else(|| ApiError::not_found(format!("{label} analysis not found")))?;
+    if record.status != Stage::Complete {
+        return Err(ApiError::conflict(format!("{label} analysis is not complete")));
+    }
+    let dna = record
+        .dna
+        .ok_or_else(|| ApiError::conflict(format!("{label} analysis is not complete")))?;
+    Ok((record.original_name, dna))
+}
+
+pub async fn compare_analyses(
+    State(state): State<AppState>,
+    Json(body): Json<CompareRequest>,
+) -> ApiResult<Json<CompareResponse>> {
+    let (left_name, left_dna) = load_completed_dna(&state, body.left_id, "left").await?;
+    let (right_name, right_dna) = load_completed_dna(&state, body.right_id, "right").await?;
+    let similarity = analysis_engine::compare_dna(
+        &left_dna,
+        &right_dna,
+        analysis_engine::SimilarityWeights::default(),
+    );
+    Ok(Json(CompareResponse {
+        left_id: body.left_id,
+        right_id: body.right_id,
+        left_name,
+        right_name,
+        similarity,
+    }))
+}
+
+#[derive(Deserialize)]
+pub struct MutationsRequest {
+    pub baseline_id: Uuid,
+    pub current_id: Uuid,
+}
+
+#[derive(Serialize)]
+pub struct MutationsResponse {
+    pub baseline_id: Uuid,
+    pub current_id: Uuid,
+    pub baseline_name: String,
+    pub current_name: String,
+    pub mutations: Vec<analysis_engine::Mutation>,
+}
+
+pub async fn detect_mutations(
+    State(state): State<AppState>,
+    Json(body): Json<MutationsRequest>,
+) -> ApiResult<Json<MutationsResponse>> {
+    let (baseline_name, baseline_dna) =
+        load_completed_dna(&state, body.baseline_id, "baseline").await?;
+    let (current_name, current_dna) =
+        load_completed_dna(&state, body.current_id, "current").await?;
+    let mutations = analysis_engine::detect_mutations(&baseline_dna, &current_dna);
+    Ok(Json(MutationsResponse {
+        baseline_id: body.baseline_id,
+        current_id: body.current_id,
+        baseline_name,
+        current_name,
+        mutations,
+    }))
+}
+
 pub async fn progress_latest(
     State(state): State<AppState>,
     Path(id): Path<Uuid>,

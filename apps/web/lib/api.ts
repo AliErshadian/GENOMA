@@ -1,4 +1,13 @@
-import type { AnalysisSummary, Anomaly, FileDna, ProgressEvent } from "@genoma/shared-types";
+import type {
+  AnalysisSummary,
+  Anomaly,
+  CompareRequest,
+  CompareResponse,
+  FileDna,
+  MutationsRequest,
+  MutationsResponse,
+  ProgressEvent,
+} from "@genoma/shared-types";
 
 export class ApiError extends Error {
   constructor(
@@ -79,6 +88,28 @@ export function getDna(id: string): Promise<FileDna> {
 
 export function getAnomalies(id: string): Promise<Anomaly[]> {
   return request<Anomaly[]>(`/api/v1/anomalies/${id}`);
+}
+
+export function compareAnalyses(leftId: string, rightId: string): Promise<CompareResponse> {
+  return request<CompareResponse>("/api/v1/compare", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ left_id: leftId, right_id: rightId } satisfies CompareRequest),
+  });
+}
+
+export function detectMutations(
+  baselineId: string,
+  currentId: string,
+): Promise<MutationsResponse> {
+  return request<MutationsResponse>("/api/v1/mutations", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      baseline_id: baselineId,
+      current_id: currentId,
+    } satisfies MutationsRequest),
+  });
 }
 
 export function getProgress(id: string): Promise<ProgressEvent> {

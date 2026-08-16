@@ -5,7 +5,7 @@ import { useFrame, type ThreeEvent } from "@react-three/fiber";
 import { Float, Line } from "@react-three/drei";
 import type { InstancedMesh, Mesh } from "three";
 import { Color, Object3D } from "three";
-import type { Anomaly, FileDna } from "@genoma/shared-types";
+import type { Anomaly, FileDna, Mutation } from "@genoma/shared-types";
 import { SEMANTIC_COLORS } from "@genoma/shared-types";
 import { buildOrganism } from "./buildOrganism";
 import { DEFAULT_LAYERS, type VizLayers } from "./layers";
@@ -17,6 +17,7 @@ const pulse = new Color();
 export function DnaOrganism({
   dna,
   anomalies = [],
+  mutations = [],
   highlighted,
   layers = DEFAULT_LAYERS,
   onSelect,
@@ -24,15 +25,19 @@ export function DnaOrganism({
 }: {
   dna: FileDna;
   anomalies?: Anomaly[];
+  mutations?: Mutation[];
   highlighted?: number | null;
   layers?: VizLayers;
   onSelect?: (chunkIndex: number | null) => void;
   onHover?: (chunkIndex: number | null, pointer?: { x: number; y: number }) => void;
 }) {
-  const model = useMemo(() => buildOrganism(dna, anomalies), [dna, anomalies]);
+  const model = useMemo(
+    () => buildOrganism(dna, anomalies, mutations),
+    [dna, anomalies, mutations],
+  );
   const mesh = useRef<InstancedMesh>(null);
   const core = useRef<Mesh>(null);
-  const colorKey = `${highlighted ?? ""}:${layers.anomalies}`;
+  const colorKey = `${highlighted ?? ""}:${layers.anomalies}:${layers.mutations}`;
   const pulseFrame = useRef(0);
 
   const neighborChunks = useMemo(() => {
@@ -51,6 +56,10 @@ export function DnaOrganism({
     model.particles.forEach((particle, index) => {
       const isolated = highlighted != null && particle.chunkIndex !== highlighted;
       color.set(particle.color).multiplyScalar(isolated ? 0.28 : 1);
+      if (particle.mutation > 0 && layers.mutations) {
+        pulse.set(SEMANTIC_COLORS.orange);
+        color.lerp(pulse, 0.22 + Math.sin(time * 1.8 + particle.phase) * 0.14);
+      }
       if (particle.anomaly >= 0.35 && layers.anomalies) {
         pulse.set(SEMANTIC_COLORS.red);
         color.lerp(pulse, 0.25 + Math.sin(time * 1.4 + particle.phase) * 0.12);
@@ -92,7 +101,10 @@ export function DnaOrganism({
     mesh.current.instanceMatrix.needsUpdate = true;
     mesh.current.rotation.y = t * 0.04;
     pulseFrame.current += 1;
-    if (pulseFrame.current % 8 === 0 && model.particles.some((item) => item.anomaly >= 0.35)) {
+    const needsPulse =
+      model.particles.some((item) => item.anomaly >= 0.35) ||
+      model.particles.some((item) => item.mutation > 0);
+    if (pulseFrame.current % 8 === 0 && needsPulse) {
       paintColors(t);
     }
   });

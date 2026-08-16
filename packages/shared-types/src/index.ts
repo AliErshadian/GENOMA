@@ -80,6 +80,48 @@ export interface Anomaly {
   neighbor_distance: number;
 }
 
+export interface Mutation {
+  chunk_index: number;
+  offset: number;
+  impact: number;
+  confidence: number;
+  distance: number;
+}
+
+export interface SimilarityBreakdown {
+  entropy: number;
+  distribution: number;
+  pattern: number;
+  complexity: number;
+  overall: number;
+}
+
+export interface CompareRequest {
+  left_id: string;
+  right_id: string;
+}
+
+export interface CompareResponse {
+  left_id: string;
+  right_id: string;
+  left_name: string;
+  right_name: string;
+  similarity: SimilarityBreakdown;
+}
+
+export interface MutationsRequest {
+  baseline_id: string;
+  current_id: string;
+}
+
+export interface MutationsResponse {
+  baseline_id: string;
+  current_id: string;
+  baseline_name: string;
+  current_name: string;
+  mutations: Mutation[];
+}
+
 export interface FileSummary {
   entropy: number;
   complexity: number;

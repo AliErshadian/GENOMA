@@ -33,6 +33,10 @@ impl ApiError {
         Self::new(StatusCode::NOT_FOUND, "not_found", message)
     }
 
+    pub fn conflict(message: impl Into<String>) -> Self {
+        Self::new(StatusCode::CONFLICT, "conflict", message)
+    }
+
     pub fn payload_too_large(message: impl Into<String>) -> Self {
         Self::new(StatusCode::PAYLOAD_TOO_LARGE, "payload_too_large", message)
     }
