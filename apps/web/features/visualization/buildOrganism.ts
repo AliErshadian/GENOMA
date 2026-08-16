@@ -1,4 +1,4 @@
-import type { Anomaly, ChunkDna, FileDna } from "@genoma/shared-types";
+import type { Anomaly, ChunkDna, FileDna, Mutation } from "@genoma/shared-types";
 import { colorForChunk, particleBudget } from "@/lib/mappings";
 
 export interface Particle {
@@ -13,6 +13,7 @@ export interface Particle {
   orbitRadius: number;
   phase: number;
   anomaly: number;
+  mutation: number;
 }
 
 export interface Cluster {
@@ -20,6 +21,7 @@ export interface Cluster {
   center: [number, number, number];
   color: string;
   anomaly: number;
+  mutation: number;
 }
 
 export interface OrganismModel {
@@ -73,8 +75,13 @@ export function clusterCenter(
   );
 }
 
-export function buildOrganism(dna: FileDna, anomalies: Anomaly[] = []): OrganismModel {
+export function buildOrganism(
+  dna: FileDna,
+  anomalies: Anomaly[] = [],
+  mutations: Mutation[] = [],
+): OrganismModel {
   const anomalyByChunk = new Map(anomalies.map((item) => [item.chunk_index, item.score]));
+  const mutationByChunk = new Map(mutations.map((item) => [item.chunk_index, item.impact]));
   const chunks = dna.chunks.length > 0 ? dna.chunks : [];
   const source = chunks.length > 0 ? chunks : null;
   const totalParticles = particleBudget(dna.visual, Math.max(1, chunks.length));
@@ -97,6 +104,7 @@ export function buildOrganism(dna: FileDna, anomalies: Anomaly[] = []): Organism
 
   source.forEach((chunk, index) => {
     const anomaly = anomalyByChunk.get(chunk.index) ?? 0;
+    const mutation = mutationByChunk.get(chunk.index) ?? 0;
     const dir = fibonacciDirection(index, source.length);
     const radius =
       0.35 +
@@ -109,7 +117,7 @@ export function buildOrganism(dna: FileDna, anomalies: Anomaly[] = []): Organism
       dir[2] * radius,
     ];
     const color = colorForChunk(chunk, anomaly);
-    clusters.push({ chunk, center, color, anomaly });
+    clusters.push({ chunk, center, color, anomaly, mutation });
 
     const count = Math.max(12, Math.round(perCluster * (0.45 + chunk.visual.density * 0.8)));
     for (let i = 0; i < count; i += 1) {
@@ -144,6 +152,7 @@ export function buildOrganism(dna: FileDna, anomalies: Anomaly[] = []): Organism
         orbitRadius: 0.012 + chunk.visual.particle_velocity * 0.045,
         phase: hash01(chunk.index, i + 9) * Math.PI * 2,
         anomaly,
+        mutation,
       });
     }
   });

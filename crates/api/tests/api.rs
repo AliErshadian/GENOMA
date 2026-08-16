@@ -167,3 +167,36 @@ async fn compare_returns_similarity_for_completed_analyses() {
     .await;
     assert_eq!(missing_status, StatusCode::NOT_FOUND);
 }
+
+#[tokio::test]
+async fn mutations_detect_chunk_diffs_between_analyses() {
+    let app = test_app().await;
+    let (_, baseline) = json_request(&app, "POST", "/api/v1/analyses/demo?file=sample.txt").await;
+    let (_, current) = json_request(&app, "POST", "/api/v1/analyses/demo?file=sample.bin").await;
+    let baseline_id = baseline["id"].as_str().expect("baseline id");
+    let current_id = current["id"].as_str().expect("current id");
+    wait_complete(&app, baseline_id).await;
+    wait_complete(&app, current_id).await;
+
+    let (status, body) = post_json(
+        &app,
+        "/api/v1/mutations",
+        serde_json::json!({ "baseline_id": baseline_id, "current_id": current_id }),
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(body["baseline_id"], baseline_id);
+    assert_eq!(body["current_id"], current_id);
+    let mutations = body["mutations"].as_array().expect("mutations array");
+    assert!(!mutations.is_empty());
+    assert!(mutations[0]["impact"].as_f64().is_some());
+
+    let (same_status, same) = post_json(
+        &app,
+        "/api/v1/mutations",
+        serde_json::json!({ "baseline_id": baseline_id, "current_id": baseline_id }),
+    )
+    .await;
+    assert_eq!(same_status, StatusCode::OK);
+    assert!(same["mutations"].as_array().unwrap().is_empty());
+}

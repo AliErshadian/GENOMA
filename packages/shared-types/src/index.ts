@@ -114,6 +114,14 @@ export interface MutationsRequest {
   current_id: string;
 }
 
+export interface MutationsResponse {
+  baseline_id: string;
+  current_id: string;
+  baseline_name: string;
+  current_name: string;
+  mutations: Mutation[];
+}
+
 export interface FileSummary {
   entropy: number;
   complexity: number;

@@ -2,7 +2,7 @@
 
 import { useMemo, useRef, useState } from "react";
 import { Canvas } from "@react-three/fiber";
-import type { Anomaly, ChunkDna, FileDna } from "@genoma/shared-types";
+import type { Anomaly, ChunkDna, FileDna, Mutation } from "@genoma/shared-types";
 import { DnaOrganism } from "./DnaOrganism";
 import { CameraRig } from "./CameraRig";
 import { HoverCard } from "./HoverCard";
@@ -14,23 +14,34 @@ import { DEFAULT_LAYERS, type VizLayers } from "./layers";
 export function DnaCanvas({
   dna,
   anomalies = [],
+  mutations = [],
   highlighted,
   onSelect,
   className,
   showControls = false,
+  layers: controlledLayers,
+  onLayersChange,
 }: {
   dna: FileDna;
   anomalies?: Anomaly[];
+  mutations?: Mutation[];
   highlighted?: number | null;
   onSelect?: (chunkIndex: number | null) => void;
   className?: string;
   showControls?: boolean;
+  layers?: VizLayers;
+  onLayersChange?: (layers: VizLayers) => void;
 }) {
   const root = useRef<HTMLDivElement>(null);
-  const [layers, setLayers] = useState<VizLayers>(DEFAULT_LAYERS);
+  const [internalLayers, setInternalLayers] = useState<VizLayers>(DEFAULT_LAYERS);
+  const layers = controlledLayers ?? internalLayers;
+  const setLayers = onLayersChange ?? setInternalLayers;
   const [resetToken, setResetToken] = useState(0);
   const [hover, setHover] = useState<{ chunk: ChunkDna; x: number; y: number } | null>(null);
-  const model = useMemo(() => buildOrganism(dna, anomalies), [dna, anomalies]);
+  const model = useMemo(
+    () => buildOrganism(dna, anomalies, mutations),
+    [dna, anomalies, mutations],
+  );
   const cameraTarget =
     highlighted == null ? FILE_CAMERA_TARGET : clusterCenter(model, highlighted);
   const level = highlighted == null ? "FILE" : "BLOCK";
@@ -57,6 +68,7 @@ export function DnaCanvas({
         <DnaOrganism
           dna={dna}
           anomalies={anomalies}
+          mutations={mutations}
           highlighted={highlighted}
           layers={layers}
           onSelect={(chunkIndex) => onSelect?.(chunkIndex)}

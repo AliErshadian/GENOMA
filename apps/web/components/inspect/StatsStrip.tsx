@@ -13,12 +13,14 @@ export function StatsStrip({
   entropy,
   complexity,
   repetition,
+  mutations,
   anomalies,
   piOffset,
 }: {
   entropy?: number;
   complexity?: number;
   repetition?: number;
+  mutations?: number | null;
   anomalies?: number;
   piOffset?: number;
 }) {
@@ -33,7 +35,7 @@ export function StatsStrip({
         label="Patterns"
         value={repetition == null ? "—" : `${(repetition * 100).toFixed(2)}%`}
       />
-      <Stat label="Mutations" value="—" />
+      <Stat label="Mutations" value={mutations == null ? "—" : String(mutations)} />
       <Stat label="Anomalies" value={anomalies == null ? "—" : String(anomalies)} />
       <Stat label="π Offset" value={piOffset == null ? "—" : piOffset.toLocaleString()} />
     </div>

@@ -26,6 +26,7 @@ export function VizControls({
           ["links", "Links"],
           ["core", "Core"],
           ["anomalies", "Anomalies"],
+          ["mutations", "Mutations"],
         ] as const
       ).map(([key, label]) => (
         <button

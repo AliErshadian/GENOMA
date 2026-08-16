@@ -4,6 +4,8 @@ import type {
   CompareRequest,
   CompareResponse,
   FileDna,
+  MutationsRequest,
+  MutationsResponse,
   ProgressEvent,
 } from "@genoma/shared-types";
 
@@ -93,6 +95,20 @@ export function compareAnalyses(leftId: string, rightId: string): Promise<Compar
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ left_id: leftId, right_id: rightId } satisfies CompareRequest),
+  });
+}
+
+export function detectMutations(
+  baselineId: string,
+  currentId: string,
+): Promise<MutationsResponse> {
+  return request<MutationsResponse>("/api/v1/mutations", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      baseline_id: baselineId,
+      current_id: currentId,
+    } satisfies MutationsRequest),
   });
 }
 

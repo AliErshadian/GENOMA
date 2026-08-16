@@ -279,6 +279,39 @@ pub async fn compare_analyses(
     }))
 }
 
+#[derive(Deserialize)]
+pub struct MutationsRequest {
+    pub baseline_id: Uuid,
+    pub current_id: Uuid,
+}
+
+#[derive(Serialize)]
+pub struct MutationsResponse {
+    pub baseline_id: Uuid,
+    pub current_id: Uuid,
+    pub baseline_name: String,
+    pub current_name: String,
+    pub mutations: Vec<analysis_engine::Mutation>,
+}
+
+pub async fn detect_mutations(
+    State(state): State<AppState>,
+    Json(body): Json<MutationsRequest>,
+) -> ApiResult<Json<MutationsResponse>> {
+    let (baseline_name, baseline_dna) =
+        load_completed_dna(&state, body.baseline_id, "baseline").await?;
+    let (current_name, current_dna) =
+        load_completed_dna(&state, body.current_id, "current").await?;
+    let mutations = analysis_engine::detect_mutations(&baseline_dna, &current_dna);
+    Ok(Json(MutationsResponse {
+        baseline_id: body.baseline_id,
+        current_id: body.current_id,
+        baseline_name,
+        current_name,
+        mutations,
+    }))
+}
+
 pub async fn progress_latest(
     State(state): State<AppState>,
     Path(id): Path<Uuid>,

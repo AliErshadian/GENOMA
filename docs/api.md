@@ -25,5 +25,6 @@ Without PostgreSQL, jobs live in memory (refresh after restart loses them). With
 - `GET /api/v1/dna/{id}`
 - `GET /api/v1/anomalies/{id}`
 - `POST /api/v1/compare` — body `{ "left_id", "right_id" }`; returns similarity breakdown for two completed analyses (404 if missing, 409 if either incomplete)
+- `POST /api/v1/mutations` — body `{ "baseline_id", "current_id" }`; returns chunk-level mutations (404 if missing, 409 if either incomplete)
 - `POST /api/v1/export` — 501
 - `GET /api/v1/evolution/{id}` — 501
