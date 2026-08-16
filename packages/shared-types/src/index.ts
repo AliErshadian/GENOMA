@@ -78,6 +78,8 @@ export interface Anomaly {
   score: number;
   entropy_z: number;
   neighbor_distance: number;
+  feature_distance?: number;
+  method?: string;
 }
 
 export interface Mutation {
