@@ -2,17 +2,43 @@
 
 import { useCallback, useState } from "react";
 
-export function DropZone({ onFile }: { onFile: (file: File) => void }) {
+export function DropZone({
+  onFile,
+  onFiles,
+}: {
+  onFile?: (file: File) => void;
+  onFiles?: (files: File[]) => void;
+}) {
   const [hover, setHover] = useState(false);
+
+  const emit = useCallback(
+    (list: FileList | null) => {
+      if (!list || list.length === 0) return;
+      const files = Array.from(list);
+      if (files.length === 1 && onFile) {
+        const file = files[0];
+        if (file) onFile(file);
+        return;
+      }
+      if (onFiles) {
+        onFiles(files);
+        return;
+      }
+      if (onFile) {
+        const file = files[0];
+        if (file) onFile(file);
+      }
+    },
+    [onFile, onFiles],
+  );
 
   const onDrop = useCallback(
     (event: React.DragEvent) => {
       event.preventDefault();
       setHover(false);
-      const file = event.dataTransfer.files[0];
-      if (file) onFile(file);
+      emit(event.dataTransfer.files);
     },
-    [onFile],
+    [emit],
   );
 
   return (
@@ -27,17 +53,18 @@ export function DropZone({ onFile }: { onFile: (file: File) => void }) {
         hover ? "border-cyan/50 bg-cyan/5" : "border-white/10"
       }`}
     >
-      <p className="text-sm tracking-[0.2em] text-core/80">DROP A FILE HERE</p>
+      <p className="text-sm tracking-[0.2em] text-core/80">DROP FILE(S) HERE</p>
       <p className="mt-3 max-w-sm font-mono text-xs leading-6 text-core/40">
-        GENOMA streams the file, extracts structural features, and grows a Digital DNA organism.
-        Files are treated as untrusted bytes and never executed.
+        GENOMA streams each file, extracts structural features, and grows Digital DNA. Multiple
+        files upload sequentially. Bytes are treated as untrusted and never executed.
       </p>
       <input
         type="file"
+        multiple
         className="hidden"
         onChange={(event) => {
-          const file = event.target.files?.[0];
-          if (file) onFile(file);
+          emit(event.target.files);
+          event.target.value = "";
         }}
       />
     </label>

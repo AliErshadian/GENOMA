@@ -312,6 +312,114 @@ pub async fn detect_mutations(
     }))
 }
 
+#[derive(Deserialize)]
+pub struct GalaxyRequest {
+    pub analysis_ids: Vec<Uuid>,
+}
+
+#[derive(Serialize)]
+pub struct GalaxyNode {
+    pub id: Uuid,
+    pub name: String,
+    pub size_bytes: u64,
+    pub entropy: f64,
+    pub complexity: f64,
+    pub repetition: f64,
+    pub chunk_count: u64,
+    pub generator_version: String,
+    pub cluster_id: u32,
+    pub position: [f64; 3],
+}
+
+#[derive(Serialize)]
+pub struct GalaxyEdge {
+    pub from: Uuid,
+    pub to: Uuid,
+    pub strength: f64,
+}
+
+#[derive(Serialize)]
+pub struct GalaxyResponse {
+    pub nodes: Vec<GalaxyNode>,
+    pub cluster_count: u32,
+    pub links: Vec<GalaxyEdge>,
+}
+
+pub async fn galaxy(
+    State(state): State<AppState>,
+    Json(body): Json<GalaxyRequest>,
+) -> ApiResult<Json<GalaxyResponse>> {
+    let mut seen = std::collections::HashSet::new();
+    let mut ids = Vec::new();
+    for id in body.analysis_ids {
+        if seen.insert(id) {
+            ids.push(id);
+        }
+    }
+    if ids.is_empty() {
+        return Err(ApiError::bad_request("analysis_ids must not be empty"));
+    }
+    if ids.len() > 50 {
+        return Err(ApiError::bad_request("analysis_ids capped at 50"));
+    }
+
+    let mut records = Vec::with_capacity(ids.len());
+    let mut dnas = Vec::with_capacity(ids.len());
+    for id in &ids {
+        let record = state
+            .store
+            .get(*id)
+            .await
+            .ok_or_else(|| ApiError::not_found(format!("analysis not found: {id}")))?;
+        if record.status != Stage::Complete {
+            return Err(ApiError::conflict(format!("analysis is not complete: {id}")));
+        }
+        let dna = record
+            .dna
+            .clone()
+            .ok_or_else(|| ApiError::conflict(format!("analysis is not complete: {id}")))?;
+        dnas.push(dna);
+        records.push(record);
+    }
+
+    let labels = analysis_engine::cluster_files(&dnas);
+    let cluster_count = labels.iter().copied().max().map(|m| m + 1).unwrap_or(0);
+    let (positions, embed_links) = analysis_engine::embed_files(&dnas);
+
+    let mut nodes = Vec::with_capacity(ids.len());
+    for (idx, id) in ids.iter().copied().enumerate() {
+        let record = &records[idx];
+        let dna = &dnas[idx];
+        nodes.push(GalaxyNode {
+            id,
+            name: record.original_name.clone(),
+            size_bytes: record.size_bytes,
+            entropy: dna.raw.entropy,
+            complexity: dna.raw.complexity,
+            repetition: dna.raw.repetition,
+            chunk_count: dna.chunk_count,
+            generator_version: dna.generator_version.clone(),
+            cluster_id: labels[idx],
+            position: positions[idx],
+        });
+    }
+
+    let links = embed_links
+        .into_iter()
+        .map(|link| GalaxyEdge {
+            from: ids[link.from],
+            to: ids[link.to],
+            strength: link.strength,
+        })
+        .collect();
+
+    Ok(Json(GalaxyResponse {
+        nodes,
+        cluster_count,
+        links,
+    }))
+}
+
 pub async fn progress_latest(
     State(state): State<AppState>,
     Path(id): Path<Uuid>,

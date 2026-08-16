@@ -200,3 +200,40 @@ async fn mutations_detect_chunk_diffs_between_analyses() {
     assert_eq!(same_status, StatusCode::OK);
     assert!(same["mutations"].as_array().unwrap().is_empty());
 }
+
+#[tokio::test]
+async fn galaxy_returns_nodes_for_completed_analyses() {
+    let app = test_app().await;
+    let (_, a) = json_request(&app, "POST", "/api/v1/analyses/demo?file=sample.txt").await;
+    let (_, b) = json_request(&app, "POST", "/api/v1/analyses/demo?file=sample.bin").await;
+    let a_id = a["id"].as_str().expect("a id");
+    let b_id = b["id"].as_str().expect("b id");
+    wait_complete(&app, a_id).await;
+    wait_complete(&app, b_id).await;
+
+    let (status, body) = post_json(
+        &app,
+        "/api/v1/galaxy",
+        serde_json::json!({ "analysis_ids": [a_id, b_id, a_id] }),
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+    let nodes = body["nodes"].as_array().expect("nodes");
+    assert_eq!(nodes.len(), 2);
+    assert!(nodes.iter().any(|node| node["id"] == a_id));
+    assert!(nodes.iter().any(|node| node["id"] == b_id));
+    assert!(nodes[0]["entropy"].as_f64().is_some());
+    assert!(nodes[0]["generator_version"].as_str().unwrap() == "dna-v1");
+    assert!(nodes[0]["cluster_id"].as_u64().is_some());
+    assert!(body["cluster_count"].as_u64().unwrap() >= 1);
+    assert_eq!(nodes[0]["position"].as_array().unwrap().len(), 3);
+    assert!(body["links"].as_array().is_some());
+
+    let (empty_status, _) = post_json(
+        &app,
+        "/api/v1/galaxy",
+        serde_json::json!({ "analysis_ids": [] }),
+    )
+    .await;
+    assert_eq!(empty_status, StatusCode::BAD_REQUEST);
+}

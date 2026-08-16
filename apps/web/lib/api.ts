@@ -4,6 +4,8 @@ import type {
   CompareRequest,
   CompareResponse,
   FileDna,
+  GalaxyRequest,
+  GalaxyResponse,
   MutationsRequest,
   MutationsResponse,
   ProgressEvent,
@@ -109,6 +111,14 @@ export function detectMutations(
       baseline_id: baselineId,
       current_id: currentId,
     } satisfies MutationsRequest),
+  });
+}
+
+export function fetchGalaxy(analysisIds: string[]): Promise<GalaxyResponse> {
+  return request<GalaxyResponse>("/api/v1/galaxy", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ analysis_ids: analysisIds } satisfies GalaxyRequest),
   });
 }
 
