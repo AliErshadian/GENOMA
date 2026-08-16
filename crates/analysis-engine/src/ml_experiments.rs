@@ -32,13 +32,12 @@ pub fn isolation_score(dna: &FileDna) -> ExperimentResult {
         let mut depth = 0_u32;
         let mut lo = 0.0_f64;
         let mut hi = 1.0_f64;
-        let mut point = values[seed as usize % dim];
         for _ in 0..16 {
             seed = hash_u64(seed);
             let axis = (seed as usize) % dim;
             seed = hash_u64(seed);
             let split = lo + ((seed as f64 / u64::MAX as f64) * (hi - lo).max(1e-9));
-            point = values[axis];
+            let point = values[axis];
             depth += 1;
             if point < split {
                 hi = split;

@@ -57,6 +57,20 @@ Next.js / Three.js  ←  SSE progress  ←  Axum API  ←  analysis pipeline
 
 PostgreSQL, Redis, and MinIO are started with Docker for the full lab. The API can run locally with filesystem storage and an in-memory job store when those services are down (local-first path). **Without PostgreSQL, refreshing `/analyze/[id]` after a restart loses the job.**
 
+### Cloud blobs (optional)
+
+Default blob backend is the local filesystem (`GENOMA_STORAGE_BACKEND=fs`). To use MinIO from `docker compose`:
+
+```bash
+docker compose up -d minio minio-init
+# in .env:
+GENOMA_STORAGE_BACKEND=s3
+# plus S3_ENDPOINT / S3_BUCKET / S3_ACCESS_KEY / S3_SECRET_KEY from .env.example
+cargo run -p genoma-api
+```
+
+Uploads go to the bucket; analysis jobs download objects to a local cache under `GENOMA_BLOB_DIR` before streaming through the pipeline.
+
 ## Installation
 
 ## Installation

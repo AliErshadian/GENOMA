@@ -3,6 +3,22 @@ use std::time::Duration;
 
 use genoma_core::{AnalysisConfig, AnalysisLevel, ChunkSize};
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum StorageBackend {
+    Fs,
+    S3,
+}
+
+#[derive(Clone, Debug)]
+pub struct S3Config {
+    pub endpoint: String,
+    pub region: String,
+    pub bucket: String,
+    pub access_key: String,
+    pub secret_key: String,
+    pub use_path_style: bool,
+}
+
 #[derive(Clone, Debug)]
 pub struct AppConfig {
     pub host: String,
@@ -11,6 +27,8 @@ pub struct AppConfig {
     pub database_url: Option<String>,
     pub redis_url: Option<String>,
     pub blob_dir: PathBuf,
+    pub storage_backend: StorageBackend,
+    pub s3: Option<S3Config>,
     pub pi_digits_path: PathBuf,
     pub demo_dir: PathBuf,
     pub git_repos_dir: PathBuf,
@@ -28,6 +46,28 @@ impl AppConfig {
             .and_then(|bytes| ChunkSize::from_bytes(bytes).ok())
             .unwrap_or(ChunkSize::Mb1);
 
+        let storage_backend = match env_or("GENOMA_STORAGE_BACKEND", "fs")
+            .to_ascii_lowercase()
+            .as_str()
+        {
+            "s3" => StorageBackend::S3,
+            _ => StorageBackend::Fs,
+        };
+        let s3 = if storage_backend == StorageBackend::S3 {
+            Some(S3Config {
+                endpoint: env_or("S3_ENDPOINT", "http://localhost:9000"),
+                region: env_or("S3_REGION", "us-east-1"),
+                bucket: env_or("S3_BUCKET", "genoma"),
+                access_key: env_or("S3_ACCESS_KEY", "genoma"),
+                secret_key: env_or("S3_SECRET_KEY", "genoma-secret"),
+                use_path_style: env_or("S3_USE_PATH_STYLE", "true")
+                    .parse()
+                    .unwrap_or(true),
+            })
+        } else {
+            None
+        };
+
         Self {
             host: env_or("GENOMA_HOST", "127.0.0.1"),
             port: env_or("GENOMA_PORT", "8080").parse().unwrap_or(8080),
@@ -35,6 +75,8 @@ impl AppConfig {
             database_url: nonempty("DATABASE_URL"),
             redis_url: nonempty("REDIS_URL"),
             blob_dir: PathBuf::from(env_or("GENOMA_BLOB_DIR", "./data/uploads")),
+            storage_backend,
+            s3,
             pi_digits_path: PathBuf::from(env_or(
                 "GENOMA_PI_DIGITS_PATH",
                 "./data/pi/pi-digits.bin",
@@ -74,6 +116,8 @@ impl AppConfig {
             database_url: None,
             redis_url: None,
             blob_dir: root.join("uploads"),
+            storage_backend: StorageBackend::Fs,
+            s3: None,
             pi_digits_path: root.join("data/pi/pi-digits.bin"),
             demo_dir: root.join("data/demos"),
             git_repos_dir: root.join("data/repos"),

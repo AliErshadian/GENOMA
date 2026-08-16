@@ -52,7 +52,10 @@ async fn run_job(state: AppState, analysis_id: Uuid) -> Result<(), crate::error:
         .get(analysis_id)
         .await
         .ok_or_else(|| crate::error::ApiError::not_found("analysis not found"))?;
-    let path = state.blobs.local_path(&record.storage_key);
+    let path = state
+        .blobs
+        .local_path_or_download(&record.storage_key)
+        .await?;
     let config = record.config.clone();
     let total = record.size_bytes;
     let pi = state.pi.clone();
