@@ -2,7 +2,7 @@ use std::convert::Infallible;
 use std::time::Duration;
 
 use analysis_engine::Stage;
-use axum::extract::{Multipart, Path, Query, State};
+use axum::extract::{Extension, Multipart, Path, Query, State};
 use axum::response::sse::{Event, KeepAlive, Sse};
 use axum::Json;
 use chrono::Utc;
@@ -11,6 +11,7 @@ use futures_util::StreamExt;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
+use crate::auth::{AuthContext, OptionalAuth, RequireAuth};
 use crate::error::{ApiError, ApiResult};
 use crate::jobs::spawn_analysis_job;
 use crate::security::{sniff_mime, validate_filename, validate_size};
@@ -96,6 +97,7 @@ impl From<AnalysisRecord> for AnalysisSummary {
 
 pub async fn create_analysis(
     State(state): State<AppState>,
+    OptionalAuth(auth): OptionalAuth,
     Query(query): Query<AnalysisQuery>,
     mut multipart: Multipart,
 ) -> ApiResult<Json<AnalysisSummary>> {
@@ -169,15 +171,28 @@ pub async fn create_analysis(
             total_bytes: Some(size),
             message: "Queued".to_string(),
         }),
+        owner_user_id: auth.as_ref().map(|ctx| ctx.user.id),
     };
     state.store.insert(record.clone()).await;
     spawn_analysis_job(state.clone(), id);
     Ok(Json(record.into()))
 }
 
-pub async fn list_analyses(State(state): State<AppState>) -> Json<Vec<AnalysisSummary>> {
-    let records = state.store.list().await;
-    Json(records.into_iter().map(AnalysisSummary::from).collect())
+pub async fn list_analyses(
+    State(state): State<AppState>,
+    OptionalAuth(auth): OptionalAuth,
+) -> ApiResult<Json<Vec<AnalysisSummary>>> {
+    let mut records = state.store.list().await;
+    if state.config.auth_required {
+        let ctx = auth.ok_or_else(|| ApiError::unauthorized("authentication required"))?;
+        let shared = state.teams.analysis_ids_visible_to(ctx.user.id).await?;
+        records.retain(|record| {
+            record.owner_user_id == Some(ctx.user.id) || shared.contains(&record.id)
+        });
+    }
+    Ok(Json(
+        records.into_iter().map(AnalysisSummary::from).collect(),
+    ))
 }
 
 pub async fn get_analysis(
@@ -488,6 +503,7 @@ pub struct DemoQuery {
 
 pub async fn create_demo(
     State(state): State<AppState>,
+    OptionalAuth(auth): OptionalAuth,
     Query(query): Query<DemoQuery>,
 ) -> ApiResult<Json<AnalysisSummary>> {
     let name = query.file.unwrap_or_else(|| "sample.txt".to_string());
@@ -534,6 +550,7 @@ pub async fn create_demo(
             total_bytes: Some(bytes.len() as u64),
             message: "Queued demo analysis".to_string(),
         }),
+        owner_user_id: auth.as_ref().map(|ctx| ctx.user.id),
     };
     state.store.insert(record.clone()).await;
     spawn_analysis_job(state, id);
@@ -759,6 +776,7 @@ pub async fn create_evolution_from_git(
                 total_bytes: Some(size),
                 message: format!("Queued git revision {}", entry.short),
             }),
+            owner_user_id: None,
         };
         state.store.insert(record).await;
         spawn_analysis_job(state.clone(), id);
@@ -799,10 +817,198 @@ async fn wait_analysis_complete(state: &AppState, id: Uuid) -> ApiResult<()> {
     Err(ApiError::internal("timed out waiting for analysis"))
 }
 
+#[derive(Deserialize)]
+pub struct IsolationExperimentRequest {
+    pub analysis_id: Uuid,
+}
+
+#[derive(Deserialize)]
+pub struct KnnExperimentRequest {
+    pub analysis_ids: Vec<Uuid>,
+    pub k: Option<usize>,
+}
+
+pub async fn experiment_isolation(
+    State(state): State<AppState>,
+    Json(body): Json<IsolationExperimentRequest>,
+) -> ApiResult<Json<analysis_engine::ExperimentResult>> {
+    let (_name, dna) = load_completed_dna(&state, body.analysis_id, "analysis").await?;
+    Ok(Json(analysis_engine::isolation_score(&dna)))
+}
+
+pub async fn experiment_knn_density(
+    State(state): State<AppState>,
+    Json(body): Json<KnnExperimentRequest>,
+) -> ApiResult<Json<analysis_engine::ExperimentResult>> {
+    if body.analysis_ids.is_empty() {
+        return Err(ApiError::bad_request("analysis_ids must not be empty"));
+    }
+    if body.analysis_ids.len() > 50 {
+        return Err(ApiError::bad_request("analysis_ids capped at 50"));
+    }
+    let mut dnas = Vec::with_capacity(body.analysis_ids.len());
+    let mut labels = Vec::with_capacity(body.analysis_ids.len());
+    for id in &body.analysis_ids {
+        let (name, dna) = load_completed_dna(&state, *id, "analysis").await?;
+        labels.push(name);
+        dnas.push(dna);
+    }
+    let k = body.k.unwrap_or(3);
+    Ok(Json(analysis_engine::knn_density(&dnas, &labels, k)))
+}
+
 pub async fn not_implemented() -> ApiError {
     ApiError::new(
         axum::http::StatusCode::NOT_IMPLEMENTED,
         "not_implemented",
         "This endpoint is reserved for a later GENOMA phase",
     )
+}
+
+#[derive(Deserialize)]
+pub struct AuthCredentials {
+    pub email: String,
+    pub password: String,
+}
+
+#[derive(Serialize)]
+pub struct AuthResponse {
+    pub token: String,
+    pub user: crate::auth::AuthUser,
+}
+
+pub async fn auth_register(
+    State(state): State<AppState>,
+    Json(body): Json<AuthCredentials>,
+) -> ApiResult<Json<AuthResponse>> {
+    let (user, token) = state.auth.register(&body.email, &body.password).await?;
+    Ok(Json(AuthResponse { token, user }))
+}
+
+pub async fn auth_login(
+    State(state): State<AppState>,
+    Json(body): Json<AuthCredentials>,
+) -> ApiResult<Json<AuthResponse>> {
+    let (user, token) = state.auth.login(&body.email, &body.password).await?;
+    Ok(Json(AuthResponse { token, user }))
+}
+
+pub async fn auth_logout(
+    State(state): State<AppState>,
+    Extension(ctx): Extension<AuthContext>,
+) -> ApiResult<Json<serde_json::Value>> {
+    state.auth.logout(ctx.token_id).await?;
+    Ok(Json(serde_json::json!({ "ok": true })))
+}
+
+pub async fn auth_me(Extension(ctx): Extension<AuthContext>) -> Json<crate::auth::AuthUser> {
+    Json(ctx.user)
+}
+
+#[derive(Deserialize)]
+pub struct CreateTeamRequest {
+    pub name: String,
+}
+
+#[derive(Deserialize)]
+pub struct AddMemberRequest {
+    pub email: String,
+    pub role: Option<String>,
+}
+
+#[derive(Deserialize)]
+pub struct ShareAnalysisRequest {
+    pub team_id: Uuid,
+}
+
+pub async fn create_team(
+    State(state): State<AppState>,
+    RequireAuth(ctx): RequireAuth,
+    Json(body): Json<CreateTeamRequest>,
+) -> ApiResult<Json<crate::teams::Team>> {
+    state
+        .teams
+        .remember_email(ctx.user.id, &ctx.user.email)
+        .await;
+    let team = state.teams.create_team(&body.name, ctx.user.id).await?;
+    Ok(Json(team))
+}
+
+pub async fn list_teams(
+    State(state): State<AppState>,
+    RequireAuth(ctx): RequireAuth,
+) -> ApiResult<Json<Vec<crate::teams::Team>>> {
+    Ok(Json(state.teams.list_teams_for_user(ctx.user.id).await?))
+}
+
+pub async fn add_team_member(
+    State(state): State<AppState>,
+    RequireAuth(ctx): RequireAuth,
+    Path(team_id): Path<Uuid>,
+    Json(body): Json<AddMemberRequest>,
+) -> ApiResult<Json<crate::teams::TeamMember>> {
+    let email = body.email.trim().to_ascii_lowercase();
+    let user = state
+        .auth
+        .find_by_email(&email)
+        .await?
+        .ok_or_else(|| ApiError::not_found("user not registered"))?;
+    state.teams.remember_email(user.id, &user.email).await;
+    let role = body.role.unwrap_or_else(|| "member".to_string());
+    let member = state
+        .teams
+        .add_member(team_id, ctx.user.id, user.id, &user.email, &role)
+        .await?;
+    Ok(Json(member))
+}
+
+pub async fn list_team_members(
+    State(state): State<AppState>,
+    RequireAuth(ctx): RequireAuth,
+    Path(team_id): Path<Uuid>,
+) -> ApiResult<Json<Vec<crate::teams::TeamMember>>> {
+    Ok(Json(
+        state.teams.list_members(team_id, ctx.user.id).await?,
+    ))
+}
+
+pub async fn share_analysis(
+    State(state): State<AppState>,
+    RequireAuth(ctx): RequireAuth,
+    Path(id): Path<Uuid>,
+    Json(body): Json<ShareAnalysisRequest>,
+) -> ApiResult<Json<serde_json::Value>> {
+    let record = state
+        .store
+        .get(id)
+        .await
+        .ok_or_else(|| ApiError::not_found("analysis not found"))?;
+    if let Some(owner) = record.owner_user_id {
+        if owner != ctx.user.id {
+            return Err(ApiError::forbidden("only the owner can share this analysis"));
+        }
+    }
+    state
+        .teams
+        .share_analysis(id, body.team_id, ctx.user.id)
+        .await?;
+    Ok(Json(serde_json::json!({ "ok": true })))
+}
+
+pub async fn list_team_analyses(
+    State(state): State<AppState>,
+    RequireAuth(ctx): RequireAuth,
+    Path(team_id): Path<Uuid>,
+) -> ApiResult<Json<Vec<AnalysisSummary>>> {
+    let ids = state
+        .teams
+        .list_shared_analysis_ids(team_id, ctx.user.id)
+        .await?;
+    let mut out = Vec::new();
+    for id in ids {
+        if let Some(record) = state.store.get(id).await {
+            out.push(AnalysisSummary::from(record));
+        }
+    }
+    Ok(Json(out))
 }

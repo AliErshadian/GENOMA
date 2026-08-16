@@ -34,6 +34,14 @@ export function WorkspaceChrome({
             THE DNA OF DIGITAL DATA
           </p>
         </Link>
+        <div className="pointer-events-auto flex gap-3 font-mono text-[10px] tracking-[0.14em]">
+          <Link href="/login" className="text-core/55 hover:text-core">
+            Sign in
+          </Link>
+          <Link href="/register" className="text-cyan/80 hover:text-cyan">
+            Register
+          </Link>
+        </div>
       </header>
       <aside className="absolute left-5 top-24 z-20 hidden w-44 md:block">
         <nav className="panel space-y-1 rounded-2xl p-3">
@@ -103,6 +111,24 @@ export function WorkspaceChrome({
             }`}
           >
             Evolution
+          </Link>
+          <Link
+            href="/analyze/experiments"
+            className={`block rounded-lg px-3 py-2 font-mono text-[11px] tracking-[0.14em] ${
+              pathname === "/analyze/experiments"
+                ? "bg-white/5 text-cyan"
+                : "text-core/70 hover:text-core"
+            }`}
+          >
+            Experiments
+          </Link>
+          <Link
+            href="/teams"
+            className={`block rounded-lg px-3 py-2 font-mono text-[11px] tracking-[0.14em] ${
+              pathname === "/teams" ? "bg-white/5 text-cyan" : "text-core/70 hover:text-core"
+            }`}
+          >
+            Teams
           </Link>
         </nav>
       </aside>

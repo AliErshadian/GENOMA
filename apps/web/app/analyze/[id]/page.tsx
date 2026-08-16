@@ -5,6 +5,7 @@ import { useParams } from "next/navigation";
 import type { AnalysisSummary, Anomaly, FileDna, Mutation } from "@genoma/shared-types";
 import { WorkspaceChrome } from "@/components/layout/WorkspaceChrome";
 import { AnomalyPanel } from "@/components/inspect/AnomalyPanel";
+import { SharePanel } from "@/components/inspect/SharePanel";
 import { Inspector } from "@/components/inspect/Inspector";
 import { StatsStrip } from "@/components/inspect/StatsStrip";
 import { CompleteCard } from "@/components/inspect/CompleteCard";
@@ -108,6 +109,7 @@ export default function AnalysisWorkspacePage() {
               enabled={layers.anomalies}
             />
           ) : null}
+          <SharePanel analysisId={id} />
         </div>
       }
       stats={

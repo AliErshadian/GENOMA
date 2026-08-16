@@ -57,6 +57,20 @@ Next.js / Three.js  ←  SSE progress  ←  Axum API  ←  analysis pipeline
 
 PostgreSQL, Redis, and MinIO are started with Docker for the full lab. The API can run locally with filesystem storage and an in-memory job store when those services are down (local-first path). **Without PostgreSQL, refreshing `/analyze/[id]` after a restart loses the job.**
 
+### Cloud blobs (optional)
+
+Default blob backend is the local filesystem (`GENOMA_STORAGE_BACKEND=fs`). To use MinIO from `docker compose`:
+
+```bash
+docker compose up -d minio minio-init
+# in .env:
+GENOMA_STORAGE_BACKEND=s3
+# plus S3_ENDPOINT / S3_BUCKET / S3_ACCESS_KEY / S3_SECRET_KEY from .env.example
+cargo run -p genoma-api
+```
+
+Uploads go to the bucket; analysis jobs download objects to a local cache under `GENOMA_BLOB_DIR` before streaming through the pipeline.
+
 ## Installation
 
 ## Installation
@@ -116,6 +130,11 @@ pnpm --filter @genoma/web lint
 | POST | `/api/v1/evolution` | Create evolution series from completed analyses |
 | GET | `/api/v1/evolution/:id` | Evolution series with ordered snapshots |
 | POST | `/api/v1/evolution/git` | Import allowlisted git file history as a series |
+| POST | `/api/v1/auth/register` | Create local user + Bearer token |
+| POST | `/api/v1/auth/login` | Exchange credentials for token |
+| GET | `/api/v1/auth/me` | Current user |
+| GET/POST | `/api/v1/teams` | List / create teams |
+| POST | `/api/v1/analyses/:id/share` | Share analysis with a team |
 | POST | `/api/v1/export` | Reserved (later phase) |
 
 Progress events are real pipeline stages, not animations:
@@ -138,7 +157,7 @@ See [docs/visualization.md](docs/visualization.md). Particle positions, colors, 
 
 ## Security
 
-Uploaded files are untrusted bytes. GENOMA never executes them, never dynamically imports them, and streams them to object storage / disk. Names are sanitized, extensions are allowlisted, size is capped, and processing is bounded-memory. Authentication is not enabled in Phase 1; the API is structured so it can be added later.
+Uploaded files are untrusted bytes. GENOMA never executes them, never dynamically imports them, and streams them to object storage / disk. Names are sanitized, extensions are allowlisted, size is capped, and processing is bounded-memory. Local email/password auth with Bearer API tokens is available; it is **off by default** (`GENOMA_AUTH_REQUIRED=false`) so demos and CI stay token-free.
 
 ## Privacy
 
@@ -148,7 +167,7 @@ Default posture is temporary local analysis. Cloud retention, if used later, mus
 
 - Bundled π dataset is 100,000 decimal digits. Larger offsets wrap; wrap is recorded on the fingerprint.
 - Similarity and anomaly scores are heuristic/statistical, not proven metrics.
-- Export and auth are roadmap — not faked in the UI.
+- Auth is optional by default (`GENOMA_AUTH_REQUIRED=false`); team collaboration requires a signed-in Bearer token.
 - DNA identity is deterministic on a given IEEE-754 platform and generator version.
 
 ## Roadmap
@@ -159,8 +178,7 @@ Default posture is temporary local analysis. Cloud retention, if used later, mus
 4. Comparison, mutation, anomaly workspace — done
 5. Galaxy mode / multi-file embedding — done
 6. Evolution / Git snapshots — done
-7. ML experiments, auth, collaboration
-
+7. ML experiments, auth, collaboration — done
 ## License
 
 MIT. See [LICENSE](LICENSE) and [docs/DISCLAIMER.md](docs/DISCLAIMER.md).

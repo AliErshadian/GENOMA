@@ -6,18 +6,22 @@ use redis::AsyncCommands;
 use tracing::warn;
 use uuid::Uuid;
 
+use crate::auth::AuthStore;
 use crate::config::AppConfig;
 use crate::evolution::EvolutionStore;
 use crate::progress::ProgressHub;
-use crate::storage::FsBlobStore;
+use crate::storage::BlobStore;
 use crate::store::AnalysisStore;
+use crate::teams::TeamStore;
 
 #[derive(Clone)]
 pub struct AppState {
     pub config: AppConfig,
     pub store: AnalysisStore,
     pub evolution: EvolutionStore,
-    pub blobs: FsBlobStore,
+    pub auth: AuthStore,
+    pub teams: TeamStore,
+    pub blobs: BlobStore,
     pub progress: ProgressHub,
     pub redis: Option<redis::aio::MultiplexedConnection>,
     pub pi: Arc<CachedPiSource<FilePiSource>>,
@@ -36,7 +40,7 @@ impl AppState {
         postgres: Option<sqlx::PgPool>,
         redis: Option<redis::aio::MultiplexedConnection>,
     ) -> crate::error::ApiResult<Self> {
-        let blobs = FsBlobStore::new(config.blob_dir.clone()).await?;
+        let blobs = BlobStore::from_config(&config).await?;
         let source = FilePiSource::load(&config.pi_digits_path).map_err(|err| {
             crate::error::ApiError::internal(format!(
                 "failed to load π dataset at {}: {err}",
@@ -47,7 +51,9 @@ impl AppState {
         Ok(Self {
             config,
             store: AnalysisStore::new(postgres.clone()),
-            evolution: EvolutionStore::new(postgres),
+            evolution: EvolutionStore::new(postgres.clone()),
+            auth: AuthStore::new(postgres.clone()),
+            teams: TeamStore::new(postgres),
             blobs,
             progress: ProgressHub::new(),
             redis,

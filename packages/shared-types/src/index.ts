@@ -78,6 +78,8 @@ export interface Anomaly {
   score: number;
   entropy_z: number;
   neighbor_distance: number;
+  feature_distance?: number;
+  method?: string;
 }
 
 export interface Mutation {
@@ -180,6 +182,44 @@ export interface EvolutionGitRequest {
   repo: string;
   path: string;
   max_commits?: number;
+}
+
+export interface ExperimentScore {
+  analysis_index: number;
+  label: string;
+  score: number;
+}
+
+export interface ExperimentResult {
+  method: string;
+  description: string;
+  scores: ExperimentScore[];
+}
+
+export interface AuthUser {
+  id: string;
+  email: string;
+  created_at: string;
+}
+
+export interface AuthResponse {
+  token: string;
+  user: AuthUser;
+}
+
+export interface Team {
+  id: string;
+  name: string;
+  created_by: string;
+  created_at: string;
+}
+
+export interface TeamMember {
+  team_id: string;
+  user_id: string;
+  email: string;
+  role: string;
+  created_at: string;
 }
 
 export interface FileSummary {

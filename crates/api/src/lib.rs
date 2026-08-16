@@ -1,3 +1,4 @@
+pub mod auth;
 pub mod config;
 pub mod db;
 pub mod error;
@@ -12,6 +13,7 @@ pub mod security;
 pub mod state;
 pub mod storage;
 pub mod store;
+pub mod teams;
 
 use std::time::Duration;
 
@@ -23,12 +25,16 @@ use tower_http::cors::{Any, CorsLayer};
 use tower_http::timeout::TimeoutLayer;
 use tower_http::trace::TraceLayer;
 
+use crate::auth::auth_middleware;
 use crate::config::AppConfig;
 use crate::rate::rate_middleware;
 use crate::routes::{
-    compare_analyses, create_analysis, create_demo, create_evolution, create_evolution_from_git,
-    detect_mutations, galaxy, get_analysis, get_anomalies, get_dna, get_evolution, health,
-    list_analyses, list_demos, list_evolution, not_implemented, progress_latest, progress_sse,
+    add_team_member, auth_login, auth_logout, auth_me, auth_register, compare_analyses,
+    create_analysis, create_demo, create_evolution, create_evolution_from_git, create_team,
+    detect_mutations, experiment_isolation, experiment_knn_density, galaxy, get_analysis,
+    get_anomalies, get_dna, get_evolution, health, list_analyses, list_demos, list_evolution,
+    list_team_analyses, list_team_members, list_teams, not_implemented, progress_latest,
+    progress_sse, share_analysis,
 };
 use crate::state::AppState;
 
@@ -48,6 +54,7 @@ pub fn app(state: AppState) -> Router {
         .route("/api/v1/analyses", get(list_analyses).post(create_analysis))
         .route("/api/v1/analyses/demo", post(create_demo))
         .route("/api/v1/analyses/{id}", get(get_analysis))
+        .route("/api/v1/analyses/{id}/share", post(share_analysis))
         .route(
             "/api/v1/analyses/{id}/progress/latest",
             get(progress_latest),
@@ -62,8 +69,27 @@ pub fn app(state: AppState) -> Router {
         .route("/api/v1/evolution", get(list_evolution).post(create_evolution))
         .route("/api/v1/evolution/git", post(create_evolution_from_git))
         .route("/api/v1/evolution/{id}", get(get_evolution))
+        .route("/api/v1/experiments/isolation", post(experiment_isolation))
+        .route(
+            "/api/v1/experiments/knn-density",
+            post(experiment_knn_density),
+        )
+        .route("/api/v1/auth/register", post(auth_register))
+        .route("/api/v1/auth/login", post(auth_login))
+        .route("/api/v1/auth/logout", post(auth_logout))
+        .route("/api/v1/auth/me", get(auth_me))
+        .route("/api/v1/teams", get(list_teams).post(create_team))
+        .route(
+            "/api/v1/teams/{id}/members",
+            get(list_team_members).post(add_team_member),
+        )
+        .route("/api/v1/teams/{id}/analyses", get(list_team_analyses))
         .route("/api/v1/export", post(not_implemented))
         .layer(DefaultBodyLimit::max(max))
+        .layer(middleware::from_fn_with_state(
+            state.clone(),
+            auth_middleware,
+        ))
         .layer(middleware::from_fn_with_state(
             state.clone(),
             rate_middleware,

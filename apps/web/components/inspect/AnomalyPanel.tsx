@@ -55,6 +55,11 @@ export function AnomalyPanel({
                   <span className="text-anomaly">
                     {(item.score * 100).toFixed(0)}%
                     <span className="ml-2 text-core/35">z{item.entropy_z.toFixed(1)}</span>
+                    {item.feature_distance != null ? (
+                      <span className="ml-2 text-core/35">
+                        f{item.feature_distance.toFixed(1)}
+                      </span>
+                    ) : null}
                   </span>
                 </button>
               </li>

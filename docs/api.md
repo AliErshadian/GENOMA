@@ -31,4 +31,16 @@ Without PostgreSQL, jobs live in memory (refresh after restart loses them). With
 - `POST /api/v1/evolution` — body `{ "name"?, "snapshots": [{ "analysis_id", "version_label" }] }` (1–20); creates a series from completed analyses
 - `GET /api/v1/evolution/{id}` — evolution series with ordered snapshots (404 if missing)
 - `POST /api/v1/evolution/git` — body `{ "repo", "path", "max_commits"? }`; imports commits from an allowlisted repo under `data/repos/` (cap 10), analyzes each revision, returns a series
+- `POST /api/v1/experiments/isolation` — body `{ "analysis_id" }`; deterministic isolation path-length heuristic (experimental)
+- `POST /api/v1/experiments/knn-density` — body `{ "analysis_ids", "k"? }`; mean distance to k nearest neighbors (experimental)
+- `POST /api/v1/auth/register` — body `{ "email", "password" }` (min 8 chars); returns `{ token, user }`
+- `POST /api/v1/auth/login` — same body; returns `{ token, user }`
+- `POST /api/v1/auth/logout` — revokes current Bearer token
+- `GET /api/v1/auth/me` — current user (requires Bearer)
+- `GET /api/v1/teams` / `POST /api/v1/teams` — list / create teams (requires Bearer)
+- `GET /api/v1/teams/{id}/members` / `POST /api/v1/teams/{id}/members` — list / invite by email
+- `GET /api/v1/teams/{id}/analyses` — analyses shared with the team
+- `POST /api/v1/analyses/{id}/share` — body `{ "team_id" }` (owner shares read access)
 - `POST /api/v1/export` — 501
+
+Auth is **optional by default** (`GENOMA_AUTH_REQUIRED=false`). When `true`, mutating and private routes require `Authorization: Bearer <token>` except health, demos list, register, and login. Analysis listing is then scoped to owned + team-shared items. Team collaboration always needs a Bearer token.
