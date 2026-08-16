@@ -328,12 +328,21 @@ pub struct GalaxyNode {
     pub chunk_count: u64,
     pub generator_version: String,
     pub cluster_id: u32,
+    pub position: [f64; 3],
+}
+
+#[derive(Serialize)]
+pub struct GalaxyEdge {
+    pub from: Uuid,
+    pub to: Uuid,
+    pub strength: f64,
 }
 
 #[derive(Serialize)]
 pub struct GalaxyResponse {
     pub nodes: Vec<GalaxyNode>,
     pub cluster_count: u32,
+    pub links: Vec<GalaxyEdge>,
 }
 
 pub async fn galaxy(
@@ -375,9 +384,10 @@ pub async fn galaxy(
 
     let labels = analysis_engine::cluster_files(&dnas);
     let cluster_count = labels.iter().copied().max().map(|m| m + 1).unwrap_or(0);
+    let (positions, embed_links) = analysis_engine::embed_files(&dnas);
 
     let mut nodes = Vec::with_capacity(ids.len());
-    for (idx, id) in ids.into_iter().enumerate() {
+    for (idx, id) in ids.iter().copied().enumerate() {
         let record = &records[idx];
         let dna = &dnas[idx];
         nodes.push(GalaxyNode {
@@ -390,11 +400,23 @@ pub async fn galaxy(
             chunk_count: dna.chunk_count,
             generator_version: dna.generator_version.clone(),
             cluster_id: labels[idx],
+            position: positions[idx],
         });
     }
+
+    let links = embed_links
+        .into_iter()
+        .map(|link| GalaxyEdge {
+            from: ids[link.from],
+            to: ids[link.to],
+            strength: link.strength,
+        })
+        .collect();
+
     Ok(Json(GalaxyResponse {
         nodes,
         cluster_count,
+        links,
     }))
 }
 

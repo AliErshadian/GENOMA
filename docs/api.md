@@ -26,6 +26,6 @@ Without PostgreSQL, jobs live in memory (refresh after restart loses them). With
 - `GET /api/v1/anomalies/{id}` — statistical anomalies for a completed analysis (used by the anomaly workspace panel)
 - `POST /api/v1/compare` — body `{ "left_id", "right_id" }`; returns similarity breakdown for two completed analyses (404 if missing, 409 if either incomplete)
 - `POST /api/v1/mutations` — body `{ "baseline_id", "current_id" }`; returns chunk-level mutations (404 if missing, 409 if either incomplete)
-- `POST /api/v1/galaxy` — body `{ "analysis_ids": Uuid[] }` (1–50, deduped); returns multi-file galaxy nodes with `cluster_id` / `cluster_count` for completed analyses (404 if missing, 409 if any incomplete)
+- `POST /api/v1/galaxy` — body `{ "analysis_ids": Uuid[] }` (1–50, deduped); returns multi-file galaxy nodes with `cluster_id`, classical MDS `position`, and similarity `links` (404 if missing, 409 if any incomplete)
 - `POST /api/v1/export` — 501
 - `GET /api/v1/evolution/{id}` — 501

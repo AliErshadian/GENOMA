@@ -144,7 +144,7 @@ Default posture is temporary local analysis. Cloud retention, if used later, mus
 
 - Bundled π dataset is 100,000 decimal digits. Larger offsets wrap; wrap is recorded on the fingerprint.
 - Similarity and anomaly scores are heuristic/statistical, not proven metrics.
-- Galaxy, Git evolution, export, and auth are roadmap — not faked in the UI.
+- Git evolution, export, and auth are roadmap — not faked in the UI.
 - DNA identity is deterministic on a given IEEE-754 platform and generator version.
 
 ## Roadmap
@@ -153,7 +153,7 @@ Default posture is temporary local analysis. Cloud retention, if used later, mus
 2. Hardened API, persistence, progress
 3. Immersive 3D organism
 4. Comparison, mutation, anomaly workspace — done
-5. Galaxy mode / multi-file embedding
+5. Galaxy mode / multi-file embedding — done
 6. Evolution / Git snapshots
 7. ML experiments, auth, collaboration
 

@@ -136,11 +136,19 @@ export interface GalaxyNode {
   chunk_count: number;
   generator_version: string;
   cluster_id: number;
+  position: [number, number, number];
+}
+
+export interface GalaxyLink {
+  from: string;
+  to: string;
+  strength: number;
 }
 
 export interface GalaxyResponse {
   nodes: GalaxyNode[];
   cluster_count: number;
+  links: GalaxyLink[];
 }
 
 export interface FileSummary {

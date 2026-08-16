@@ -25,4 +25,14 @@ Particles orbit on deterministic axes seeded from `hash01(chunk, i)` and `partic
 
 Workspace overlays: hover inspect (block #, offset, size, entropy, complexity, repetition, π offset), mutation baseline picker, anomaly list (score / chunk / offset / entropy z — click selects BLOCK zoom), and layer toggles (Particles / Links / Core / Anomalies / Mutations). Turning Anomalies off hides red-distorted particles and dims the anomaly list. Mutations layer toggles the orange pulse only.
 
-Galaxy mode is not implemented in this phase and is not faked.
+## Galaxy mode
+
+`/analyze/galaxy` embeds up to 50 completed analyses in a shared 3D space:
+
+- Distance: `1 - compare_dna.overall`
+- Clusters: average-linkage agglomerative cut at 0.35
+- Layout: classical MDS → 3D (deterministic Jacobi eigendecomposition; no `Math.random()`)
+- Links: pairs with similarity ≥ 0.65
+- Interaction: orbit camera; click a node to open that analysis organism
+
+Node colors follow a fixed cluster palette derived from semantic colors.
