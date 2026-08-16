@@ -104,6 +104,16 @@ export function WorkspaceChrome({
           >
             Evolution
           </Link>
+          <Link
+            href="/analyze/experiments"
+            className={`block rounded-lg px-3 py-2 font-mono text-[11px] tracking-[0.14em] ${
+              pathname === "/analyze/experiments"
+                ? "bg-white/5 text-cyan"
+                : "text-core/70 hover:text-core"
+            }`}
+          >
+            Experiments
+          </Link>
         </nav>
       </aside>
       <main className="absolute inset-0">{children}</main>

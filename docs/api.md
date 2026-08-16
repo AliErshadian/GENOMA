@@ -31,4 +31,6 @@ Without PostgreSQL, jobs live in memory (refresh after restart loses them). With
 - `POST /api/v1/evolution` — body `{ "name"?, "snapshots": [{ "analysis_id", "version_label" }] }` (1–20); creates a series from completed analyses
 - `GET /api/v1/evolution/{id}` — evolution series with ordered snapshots (404 if missing)
 - `POST /api/v1/evolution/git` — body `{ "repo", "path", "max_commits"? }`; imports commits from an allowlisted repo under `data/repos/` (cap 10), analyzes each revision, returns a series
+- `POST /api/v1/experiments/isolation` — body `{ "analysis_id" }`; deterministic isolation path-length heuristic (experimental)
+- `POST /api/v1/experiments/knn-density` — body `{ "analysis_ids", "k"? }`; mean distance to k nearest neighbors (experimental)
 - `POST /api/v1/export` — 501

@@ -321,3 +321,34 @@ async fn evolution_git_import_builds_series_from_demo_repo() {
     .await;
     assert_eq!(bad_status, StatusCode::BAD_REQUEST);
 }
+
+#[tokio::test]
+async fn experiments_isolation_and_knn() {
+    let app = test_app().await;
+    let (_, a) = json_request(&app, "POST", "/api/v1/analyses/demo?file=sample.txt").await;
+    let (_, b) = json_request(&app, "POST", "/api/v1/analyses/demo?file=sample.bin").await;
+    let a_id = a["id"].as_str().expect("a id");
+    let b_id = b["id"].as_str().expect("b id");
+    wait_complete(&app, a_id).await;
+    wait_complete(&app, b_id).await;
+
+    let (iso_status, iso) = post_json(
+        &app,
+        "/api/v1/experiments/isolation",
+        serde_json::json!({ "analysis_id": a_id }),
+    )
+    .await;
+    assert_eq!(iso_status, StatusCode::OK);
+    assert_eq!(iso["method"], "isolation_v1");
+    assert!(iso["scores"][0]["score"].as_f64().is_some());
+
+    let (knn_status, knn) = post_json(
+        &app,
+        "/api/v1/experiments/knn-density",
+        serde_json::json!({ "analysis_ids": [a_id, b_id], "k": 1 }),
+    )
+    .await;
+    assert_eq!(knn_status, StatusCode::OK);
+    assert_eq!(knn["method"], "knn_density_v1");
+    assert_eq!(knn["scores"].as_array().unwrap().len(), 2);
+}

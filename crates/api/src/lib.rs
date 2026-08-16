@@ -27,8 +27,9 @@ use crate::config::AppConfig;
 use crate::rate::rate_middleware;
 use crate::routes::{
     compare_analyses, create_analysis, create_demo, create_evolution, create_evolution_from_git,
-    detect_mutations, galaxy, get_analysis, get_anomalies, get_dna, get_evolution, health,
-    list_analyses, list_demos, list_evolution, not_implemented, progress_latest, progress_sse,
+    detect_mutations, experiment_isolation, experiment_knn_density, galaxy, get_analysis,
+    get_anomalies, get_dna, get_evolution, health, list_analyses, list_demos, list_evolution,
+    not_implemented, progress_latest, progress_sse,
 };
 use crate::state::AppState;
 
@@ -62,6 +63,11 @@ pub fn app(state: AppState) -> Router {
         .route("/api/v1/evolution", get(list_evolution).post(create_evolution))
         .route("/api/v1/evolution/git", post(create_evolution_from_git))
         .route("/api/v1/evolution/{id}", get(get_evolution))
+        .route("/api/v1/experiments/isolation", post(experiment_isolation))
+        .route(
+            "/api/v1/experiments/knn-density",
+            post(experiment_knn_density),
+        )
         .route("/api/v1/export", post(not_implemented))
         .layer(DefaultBodyLimit::max(max))
         .layer(middleware::from_fn_with_state(

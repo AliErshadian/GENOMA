@@ -7,6 +7,7 @@ import type {
   EvolutionGitRequest,
   EvolutionSeries,
   EvolutionSnapshotInput,
+  ExperimentResult,
   FileDna,
   GalaxyRequest,
   GalaxyResponse,
@@ -158,6 +159,25 @@ export function importEvolutionFromGit(
       path,
       max_commits: maxCommits,
     } satisfies EvolutionGitRequest),
+  });
+}
+
+export function runIsolationExperiment(analysisId: string): Promise<ExperimentResult> {
+  return request<ExperimentResult>("/api/v1/experiments/isolation", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ analysis_id: analysisId }),
+  });
+}
+
+export function runKnnDensityExperiment(
+  analysisIds: string[],
+  k?: number,
+): Promise<ExperimentResult> {
+  return request<ExperimentResult>("/api/v1/experiments/knn-density", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ analysis_ids: analysisIds, k }),
   });
 }
 

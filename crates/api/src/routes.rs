@@ -799,6 +799,46 @@ async fn wait_analysis_complete(state: &AppState, id: Uuid) -> ApiResult<()> {
     Err(ApiError::internal("timed out waiting for analysis"))
 }
 
+#[derive(Deserialize)]
+pub struct IsolationExperimentRequest {
+    pub analysis_id: Uuid,
+}
+
+#[derive(Deserialize)]
+pub struct KnnExperimentRequest {
+    pub analysis_ids: Vec<Uuid>,
+    pub k: Option<usize>,
+}
+
+pub async fn experiment_isolation(
+    State(state): State<AppState>,
+    Json(body): Json<IsolationExperimentRequest>,
+) -> ApiResult<Json<analysis_engine::ExperimentResult>> {
+    let (_name, dna) = load_completed_dna(&state, body.analysis_id, "analysis").await?;
+    Ok(Json(analysis_engine::isolation_score(&dna)))
+}
+
+pub async fn experiment_knn_density(
+    State(state): State<AppState>,
+    Json(body): Json<KnnExperimentRequest>,
+) -> ApiResult<Json<analysis_engine::ExperimentResult>> {
+    if body.analysis_ids.is_empty() {
+        return Err(ApiError::bad_request("analysis_ids must not be empty"));
+    }
+    if body.analysis_ids.len() > 50 {
+        return Err(ApiError::bad_request("analysis_ids capped at 50"));
+    }
+    let mut dnas = Vec::with_capacity(body.analysis_ids.len());
+    let mut labels = Vec::with_capacity(body.analysis_ids.len());
+    for id in &body.analysis_ids {
+        let (name, dna) = load_completed_dna(&state, *id, "analysis").await?;
+        labels.push(name);
+        dnas.push(dna);
+    }
+    let k = body.k.unwrap_or(3);
+    Ok(Json(analysis_engine::knn_density(&dnas, &labels, k)))
+}
+
 pub async fn not_implemented() -> ApiError {
     ApiError::new(
         axum::http::StatusCode::NOT_IMPLEMENTED,

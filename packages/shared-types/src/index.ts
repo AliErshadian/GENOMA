@@ -184,6 +184,18 @@ export interface EvolutionGitRequest {
   max_commits?: number;
 }
 
+export interface ExperimentScore {
+  analysis_index: number;
+  label: string;
+  score: number;
+}
+
+export interface ExperimentResult {
+  method: string;
+  description: string;
+  scores: ExperimentScore[];
+}
+
 export interface FileSummary {
   entropy: number;
   complexity: number;
