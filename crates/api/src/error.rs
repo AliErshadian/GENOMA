@@ -9,6 +9,7 @@ pub struct ErrorBody {
     pub code: String,
 }
 
+#[derive(Debug)]
 pub struct ApiError {
     pub status: StatusCode,
     pub code: String,

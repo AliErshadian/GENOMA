@@ -2,7 +2,9 @@ pub mod config;
 pub mod db;
 pub mod error;
 pub mod jobs;
+pub mod persist;
 pub mod progress;
+pub mod rate;
 pub mod routes;
 pub mod security;
 pub mod state;
@@ -12,6 +14,7 @@ pub mod store;
 use std::time::Duration;
 
 use axum::extract::DefaultBodyLimit;
+use axum::middleware;
 use axum::routing::{get, post};
 use axum::Router;
 use tower_http::cors::{Any, CorsLayer};
@@ -19,14 +22,14 @@ use tower_http::timeout::TimeoutLayer;
 use tower_http::trace::TraceLayer;
 
 use crate::config::AppConfig;
+use crate::rate::rate_middleware;
 use crate::routes::{
-    create_analysis, create_demo, get_analysis, get_anomalies, get_dna, health, list_demos,
-    not_implemented, progress_sse,
+    create_analysis, create_demo, get_analysis, get_anomalies, get_dna, health, list_analyses,
+    list_demos, not_implemented, progress_latest, progress_sse,
 };
 use crate::state::AppState;
 
 pub async fn build_state(config: AppConfig) -> crate::error::ApiResult<AppState> {
-    let _postgres = db::connect_postgres(&config).await;
     AppState::new(config).await
 }
 
@@ -39,9 +42,13 @@ pub fn app(state: AppState) -> Router {
 
     Router::new()
         .route("/api/v1/health", get(health))
-        .route("/api/v1/analyses", post(create_analysis))
+        .route("/api/v1/analyses", get(list_analyses).post(create_analysis))
         .route("/api/v1/analyses/demo", post(create_demo))
         .route("/api/v1/analyses/{id}", get(get_analysis))
+        .route(
+            "/api/v1/analyses/{id}/progress/latest",
+            get(progress_latest),
+        )
         .route("/api/v1/analyses/{id}/progress", get(progress_sse))
         .route("/api/v1/demos", get(list_demos))
         .route("/api/v1/dna/{id}", get(get_dna))
@@ -50,6 +57,10 @@ pub fn app(state: AppState) -> Router {
         .route("/api/v1/export", post(not_implemented))
         .route("/api/v1/evolution/{id}", get(not_implemented))
         .layer(DefaultBodyLimit::max(max))
+        .layer(middleware::from_fn_with_state(
+            state.clone(),
+            rate_middleware,
+        ))
         .layer(TimeoutLayer::with_status_code(
             axum::http::StatusCode::REQUEST_TIMEOUT,
             Duration::from_secs(60 * 30),

@@ -55,7 +55,9 @@ Next.js / Three.js  ←  SSE progress  ←  Axum API  ←  analysis pipeline
 | Web | Next.js, React, Tailwind, React Three Fiber |
 | Data | PostgreSQL (schema ready), Redis (compose), MinIO (compose), local filesystem blobs |
 
-PostgreSQL, Redis, and MinIO are started with Docker for the full lab. The API can run locally with filesystem storage and an in-memory job store when those services are down (local-first path).
+PostgreSQL, Redis, and MinIO are started with Docker for the full lab. The API can run locally with filesystem storage and an in-memory job store when those services are down (local-first path). **Without PostgreSQL, refreshing `/analyze/[id]` after a restart loses the job.**
+
+## Installation
 
 ## Installation
 
@@ -99,9 +101,11 @@ pnpm --filter @genoma/web lint
 | Method | Path | Purpose |
 | --- | --- | --- |
 | GET | `/api/v1/health` | Service identity |
+| GET | `/api/v1/analyses` | Recent analyses |
 | POST | `/api/v1/analyses` | Stream upload, start job |
 | GET | `/api/v1/analyses/:id` | Status + summary |
 | GET | `/api/v1/analyses/:id/progress` | SSE progress |
+| GET | `/api/v1/analyses/:id/progress/latest` | JSON progress snapshot |
 | POST | `/api/v1/analyses/demo` | Analyze a bundled demo file |
 | GET | `/api/v1/dna/:id` | Full Digital DNA |
 | GET | `/api/v1/anomalies/:id` | Statistical anomalies |

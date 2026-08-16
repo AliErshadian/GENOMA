@@ -39,7 +39,7 @@ pub fn spawn_analysis_job(state: AppState, analysis_id: Uuid) {
                 .await;
             if let Some(record) = state.store.get(analysis_id).await {
                 if let Some(event) = record.progress {
-                    state.progress.publish(analysis_id, event);
+                    state.publish_progress(analysis_id, event).await;
                 }
             }
         }
@@ -81,7 +81,7 @@ async fn run_job(state: AppState, analysis_id: Uuid) -> Result<(), crate::error:
                 record.progress = Some(event);
             })
             .await;
-        state.progress.publish(analysis_id, event_clone);
+        state.publish_progress(analysis_id, event_clone).await;
     }
 
     let result = join
@@ -107,7 +107,7 @@ async fn run_job(state: AppState, analysis_id: Uuid) -> Result<(), crate::error:
         .await;
     if let Some(record) = state.store.get(analysis_id).await {
         if let Some(event) = record.progress {
-            state.progress.publish(analysis_id, event);
+            state.publish_progress(analysis_id, event).await;
         }
     }
     Ok(())

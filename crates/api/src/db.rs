@@ -21,3 +21,23 @@ pub async fn connect_postgres(config: &AppConfig) -> Option<PgPool> {
         }
     }
 }
+
+pub async fn connect_redis(config: &AppConfig) -> Option<redis::aio::MultiplexedConnection> {
+    let url = config.redis_url.as_ref()?;
+    match redis::Client::open(url.as_str()) {
+        Ok(client) => match client.get_multiplexed_async_connection().await {
+            Ok(connection) => {
+                info!("connected to Redis");
+                Some(connection)
+            }
+            Err(err) => {
+                warn!(error = %err, "Redis unavailable; progress stays in-process");
+                None
+            }
+        },
+        Err(err) => {
+            warn!(error = %err, "invalid REDIS_URL; progress stays in-process");
+            None
+        }
+    }
+}

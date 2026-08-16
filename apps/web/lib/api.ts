@@ -1,4 +1,14 @@
-import type { AnalysisSummary, FileDna, ProgressEvent } from "@genoma/shared-types";
+import type { AnalysisSummary, Anomaly, FileDna, ProgressEvent } from "@genoma/shared-types";
+
+export class ApiError extends Error {
+  constructor(
+    message: string,
+    public readonly code?: string,
+    public readonly status?: number,
+  ) {
+    super(message);
+  }
+}
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const response = await fetch(path, {
@@ -9,20 +19,48 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
     },
   });
   if (!response.ok) {
-    const body = await response.text();
-    throw new Error(body || response.statusText);
+    let message = response.statusText;
+    let code: string | undefined;
+    try {
+      const body = (await response.json()) as { error?: string; code?: string };
+      message = body.error || message;
+      code = body.code;
+    } catch {
+      /* non-JSON error */
+    }
+    throw new ApiError(message, code, response.status);
   }
   return response.json() as Promise<T>;
 }
 
-export function uploadFile(file: File): Promise<AnalysisSummary> {
+export type UploadOptions = {
+  chunkSize?: number;
+  level?: string;
+  piOffset?: number;
+};
+
+export function uploadFile(file: File, options: UploadOptions = {}): Promise<AnalysisSummary> {
   const data = new FormData();
   data.append("file", file);
-  return request<AnalysisSummary>("/api/v1/analyses", { method: "POST", body: data });
+  const query = new URLSearchParams();
+  if (options.chunkSize) query.set("chunk_size", String(options.chunkSize));
+  if (options.level) query.set("level", options.level);
+  if (options.piOffset != null) query.set("pi_offset", String(options.piOffset));
+  const suffix = query.toString();
+  return request<AnalysisSummary>(`/api/v1/analyses${suffix ? `?${suffix}` : ""}`, {
+    method: "POST",
+    body: data,
+  });
 }
 
-export function startDemo(file = "sample.txt"): Promise<AnalysisSummary> {
-  return request<AnalysisSummary>(`/api/v1/analyses/demo?file=${encodeURIComponent(file)}`, {
+export function startDemo(
+  file = "sample.txt",
+  options: UploadOptions = {},
+): Promise<AnalysisSummary> {
+  const query = new URLSearchParams({ file });
+  if (options.chunkSize) query.set("chunk_size", String(options.chunkSize));
+  if (options.level) query.set("level", options.level);
+  return request<AnalysisSummary>(`/api/v1/analyses/demo?${query.toString()}`, {
     method: "POST",
   });
 }
@@ -31,27 +69,24 @@ export function getAnalysis(id: string): Promise<AnalysisSummary> {
   return request<AnalysisSummary>(`/api/v1/analyses/${id}`);
 }
 
+export function listAnalyses(): Promise<AnalysisSummary[]> {
+  return request<AnalysisSummary[]>("/api/v1/analyses");
+}
+
 export function getDna(id: string): Promise<FileDna> {
   return request<FileDna>(`/api/v1/dna/${id}`);
 }
 
-export function listDemos(): Promise<string[]> {
-  return request<string[]>("/api/v1/demos");
+export function getAnomalies(id: string): Promise<Anomaly[]> {
+  return request<Anomaly[]>(`/api/v1/anomalies/${id}`);
 }
 
-export function subscribeProgress(
-  id: string,
-  onEvent: (event: ProgressEvent) => void,
-): () => void {
-  const source = new EventSource(`/api/v1/analyses/${id}/progress`);
-  source.onmessage = (message) => {
-    const event = JSON.parse(message.data) as ProgressEvent;
-    onEvent(event);
-    if (event.stage === "COMPLETE" || event.stage === "FAILED") {
-      source.close();
-    }
-  };
-  return () => source.close();
+export function getProgress(id: string): Promise<ProgressEvent> {
+  return request<ProgressEvent>(`/api/v1/analyses/${id}/progress/latest`);
+}
+
+export function listDemos(): Promise<string[]> {
+  return request<string[]>("/api/v1/demos");
 }
 
 export async function loadDemoDna(): Promise<FileDna> {

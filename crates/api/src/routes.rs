@@ -175,6 +175,11 @@ pub async fn create_analysis(
     Ok(Json(record.into()))
 }
 
+pub async fn list_analyses(State(state): State<AppState>) -> Json<Vec<AnalysisSummary>> {
+    let records = state.store.list().await;
+    Json(records.into_iter().map(AnalysisSummary::from).collect())
+}
+
 pub async fn get_analysis(
     State(state): State<AppState>,
     Path(id): Path<Uuid>,
@@ -220,6 +225,17 @@ pub async fn get_anomalies(
     Ok(Json(record.anomalies))
 }
 
+pub async fn progress_latest(
+    State(state): State<AppState>,
+    Path(id): Path<Uuid>,
+) -> ApiResult<Json<analysis_engine::ProgressEvent>> {
+    let event = state
+        .latest_progress(id)
+        .await
+        .ok_or_else(|| ApiError::not_found("analysis not found"))?;
+    Ok(Json(event))
+}
+
 pub async fn progress_sse(
     State(state): State<AppState>,
     Path(id): Path<Uuid>,
@@ -230,7 +246,10 @@ pub async fn progress_sse(
         .await
         .ok_or_else(|| ApiError::not_found("analysis not found"))?;
     let rx = state.progress.subscribe();
-    let initial = record.progress.clone();
+    let initial = state
+        .latest_progress(id)
+        .await
+        .or(record.progress.clone());
     let stream = stream::once(async move {
         if let Some(event) = initial {
             let json = serde_json::to_string(&event).unwrap_or_else(|_| "{}".into());
@@ -267,6 +286,9 @@ fn async_stream(
 #[derive(Deserialize)]
 pub struct DemoQuery {
     pub file: Option<String>,
+    pub chunk_size: Option<usize>,
+    pub level: Option<String>,
+    pub pi_offset: Option<u64>,
 }
 
 pub async fn create_demo(
@@ -284,6 +306,19 @@ pub async fn create_demo(
     let id = Uuid::new_v4();
     let storage_key = object_key(id, &name);
     state.blobs.put_bytes(&storage_key, &bytes).await?;
+    let mut config = state.config.default_analysis.clone();
+    if let Some(size) = query.chunk_size {
+        config.chunk_size = genoma_core::ChunkSize::from_bytes(size)
+            .map_err(|err| ApiError::bad_request(err.to_string()))?;
+    }
+    if let Some(level) = query.level {
+        config.level = level
+            .parse()
+            .map_err(|err: genoma_core::Error| ApiError::bad_request(err.to_string()))?;
+    }
+    if let Some(offset) = query.pi_offset {
+        config.pi_base_offset = offset;
+    }
     let record = AnalysisRecord {
         id,
         status: Stage::Queued,
@@ -291,7 +326,7 @@ pub async fn create_demo(
         size_bytes: bytes.len() as u64,
         mime_type: Some(sniff_mime(&name, None)),
         storage_key,
-        config: state.config.default_analysis.clone(),
+        config,
         error: None,
         created_at: Utc::now(),
         completed_at: None,

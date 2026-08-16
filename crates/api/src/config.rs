@@ -16,6 +16,7 @@ pub struct AppConfig {
     pub max_upload_bytes: u64,
     pub cors_origin: String,
     pub default_analysis: AnalysisConfig,
+    pub rate_limit_per_minute: u64,
 }
 
 impl AppConfig {
@@ -48,6 +49,9 @@ impl AppConfig {
                 pi_base_offset: 0,
                 generator_version: genoma_core::GENERATOR_VERSION.to_string(),
             },
+            rate_limit_per_minute: env_or("GENOMA_RATE_LIMIT_PER_MINUTE", "30")
+                .parse()
+                .unwrap_or(30),
         }
     }
 
@@ -57,6 +61,24 @@ impl AppConfig {
 
     pub fn request_timeout() -> Duration {
         Duration::from_secs(60 * 30)
+    }
+
+    pub fn for_tests(root: impl Into<std::path::PathBuf>) -> Self {
+        let root = root.into();
+        Self {
+            host: "127.0.0.1".into(),
+            port: 0,
+            public_url: "http://localhost:8080".into(),
+            database_url: None,
+            redis_url: None,
+            blob_dir: root.join("uploads"),
+            pi_digits_path: root.join("data/pi/pi-digits.bin"),
+            demo_dir: root.join("data/demos"),
+            max_upload_bytes: 32 * 1024 * 1024,
+            cors_origin: "http://localhost:3000".into(),
+            default_analysis: AnalysisConfig::default().with_chunk_size(ChunkSize::Kb4),
+            rate_limit_per_minute: 120,
+        }
     }
 }
 
