@@ -12,7 +12,21 @@ fn workspace_root() -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../..")
 }
 
+fn ensure_demo_evolve_repo() {
+    let repo = workspace_root().join("data/repos/demo-evolve");
+    if repo.join(".git").is_dir() || repo.join("HEAD").is_file() {
+        return;
+    }
+    let script = workspace_root().join("scripts/seed-demo-evolve.sh");
+    let status = std::process::Command::new("bash")
+        .arg(&script)
+        .status()
+        .expect("run seed-demo-evolve.sh");
+    assert!(status.success(), "failed to seed demo-evolve repo");
+}
+
 async fn test_app() -> axum::Router {
+    ensure_demo_evolve_repo();
     let mut config = AppConfig::for_tests(workspace_root());
     config.blob_dir = std::env::temp_dir().join(format!("genoma-test-{}", uuid::Uuid::new_v4()));
     let state = AppState::with_backends(config, None, None)
@@ -279,4 +293,31 @@ async fn evolution_series_round_trip() {
         .unwrap()
         .iter()
         .any(|item| item["id"] == series_id));
+}
+
+#[tokio::test]
+async fn evolution_git_import_builds_series_from_demo_repo() {
+    let app = test_app().await;
+    let (status, body) = post_json(
+        &app,
+        "/api/v1/evolution/git",
+        serde_json::json!({
+            "repo": "demo-evolve",
+            "path": "sample.txt",
+            "max_commits": 3
+        }),
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK, "{body}");
+    let snapshots = body["snapshots"].as_array().expect("snapshots");
+    assert!(snapshots.len() >= 3);
+    assert!(body["name"].as_str().unwrap().contains("demo-evolve"));
+
+    let (bad_status, _) = post_json(
+        &app,
+        "/api/v1/evolution/git",
+        serde_json::json!({ "repo": "../etc", "path": "sample.txt" }),
+    )
+    .await;
+    assert_eq!(bad_status, StatusCode::BAD_REQUEST);
 }

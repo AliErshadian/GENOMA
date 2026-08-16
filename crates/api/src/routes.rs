@@ -707,6 +707,98 @@ pub async fn list_evolution(
     Ok(Json(series.into_iter().map(Into::into).collect()))
 }
 
+#[derive(Deserialize)]
+pub struct EvolutionGitRequest {
+    pub repo: String,
+    pub path: String,
+    pub max_commits: Option<usize>,
+}
+
+pub async fn create_evolution_from_git(
+    State(state): State<AppState>,
+    Json(body): Json<EvolutionGitRequest>,
+) -> ApiResult<Json<EvolutionSeriesResponse>> {
+    let repo = crate::git_import::resolve_repo(&state.config.git_repos_dir, &body.repo)?;
+    let max_commits = body.max_commits.unwrap_or(8).min(10);
+    let history = crate::git_import::read_file_history(&repo, &body.path, max_commits)?;
+
+    let file_stem = std::path::Path::new(&body.path)
+        .file_name()
+        .and_then(|value| value.to_str())
+        .unwrap_or("sample.txt");
+    let mut snapshot_inputs = Vec::with_capacity(history.len());
+
+    for entry in &history {
+        let id = Uuid::new_v4();
+        let filename = format!("{file_stem}");
+        let storage_key = object_key(id, &filename);
+        state.blobs.put_bytes(&storage_key, &entry.bytes).await?;
+        let size = entry.bytes.len() as u64;
+        let label = if entry.subject.len() > 40 {
+            entry.short.clone()
+        } else {
+            format!("{} · {}", entry.short, entry.subject)
+        };
+        let record = AnalysisRecord {
+            id,
+            status: Stage::Queued,
+            original_name: filename,
+            size_bytes: size,
+            mime_type: Some(sniff_mime(file_stem, None)),
+            storage_key,
+            config: state.config.default_analysis.clone(),
+            error: None,
+            created_at: Utc::now(),
+            completed_at: None,
+            dna: None,
+            anomalies: Vec::new(),
+            progress: Some(analysis_engine::ProgressEvent {
+                stage: Stage::Queued,
+                progress: 0.0,
+                processed_bytes: 0,
+                total_bytes: Some(size),
+                message: format!("Queued git revision {}", entry.short),
+            }),
+        };
+        state.store.insert(record).await;
+        spawn_analysis_job(state.clone(), id);
+        wait_analysis_complete(&state, id).await?;
+        snapshot_inputs.push(EvolutionSnapshotInput {
+            analysis_id: id,
+            version_label: label,
+        });
+    }
+
+    create_evolution(
+        State(state),
+        Json(CreateEvolutionRequest {
+            name: Some(format!("{}:{}", body.repo, body.path)),
+            snapshots: snapshot_inputs,
+        }),
+    )
+    .await
+}
+
+async fn wait_analysis_complete(state: &AppState, id: Uuid) -> ApiResult<()> {
+    for _ in 0..200 {
+        tokio::time::sleep(Duration::from_millis(50)).await;
+        if let Some(record) = state.store.get(id).await {
+            match record.status {
+                Stage::Complete => return Ok(()),
+                Stage::Failed => {
+                    return Err(ApiError::internal(
+                        record
+                            .error
+                            .unwrap_or_else(|| "analysis failed".to_string()),
+                    ));
+                }
+                _ => continue,
+            }
+        }
+    }
+    Err(ApiError::internal("timed out waiting for analysis"))
+}
+
 pub async fn not_implemented() -> ApiError {
     ApiError::new(
         axum::http::StatusCode::NOT_IMPLEMENTED,

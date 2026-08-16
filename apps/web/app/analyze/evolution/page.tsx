@@ -14,6 +14,7 @@ import {
   createEvolution,
   detectMutations,
   getEvolution,
+  importEvolutionFromGit,
   listAnalyses,
   listEvolution,
 } from "@/lib/api";
@@ -123,6 +124,22 @@ export default function EvolutionPage() {
     }
   };
 
+  const importGitDemo = async () => {
+    setBusy(true);
+    setError(null);
+    try {
+      const created = await importEvolutionFromGit("demo-evolve", "sample.txt", 8);
+      setSeries(created);
+      setLeftIdx(0);
+      setRightIdx(Math.min(1, created.snapshots.length - 1));
+      setSeriesList((prev) => [created, ...prev.filter((item) => item.id !== created.id)]);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Git import failed");
+    } finally {
+      setBusy(false);
+    }
+  };
+
   const selectAdjacent = (index: number) => {
     if (!series || series.snapshots.length < 2) return;
     setLeftIdx(index);
@@ -140,8 +157,20 @@ export default function EvolutionPage() {
           <h1 className="mt-3 text-2xl tracking-[0.1em]">Version timeline</h1>
           <p className="mt-3 max-w-2xl font-mono text-xs leading-relaxed text-core/50">
             Build a series from completed analyses, scrub the timeline, and compare adjacent
-            versions with structural similarity and mutation counts.
+            versions with structural similarity and mutation counts. Or import the allowlisted
+            Git demo repo under data/repos.
           </p>
+
+          <div className="mt-6">
+            <button
+              type="button"
+              disabled={busy}
+              onClick={() => void importGitDemo()}
+              className="rounded-full border border-cyan/30 px-4 py-2 font-mono text-[11px] tracking-[0.14em] text-cyan hover:bg-cyan/10 disabled:opacity-35"
+            >
+              Import Git demo
+            </button>
+          </div>
 
           <div className="mt-8 grid gap-8 lg:grid-cols-2">
             <div>

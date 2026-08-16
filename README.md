@@ -115,6 +115,7 @@ pnpm --filter @genoma/web lint
 | GET | `/api/v1/evolution` | List recent evolution series |
 | POST | `/api/v1/evolution` | Create evolution series from completed analyses |
 | GET | `/api/v1/evolution/:id` | Evolution series with ordered snapshots |
+| POST | `/api/v1/evolution/git` | Import allowlisted git file history as a series |
 | POST | `/api/v1/export` | Reserved (later phase) |
 
 Progress events are real pipeline stages, not animations:
@@ -147,7 +148,7 @@ Default posture is temporary local analysis. Cloud retention, if used later, mus
 
 - Bundled π dataset is 100,000 decimal digits. Larger offsets wrap; wrap is recorded on the fingerprint.
 - Similarity and anomaly scores are heuristic/statistical, not proven metrics.
-- Git evolution, export, and auth are roadmap — not faked in the UI.
+- Export and auth are roadmap — not faked in the UI.
 - DNA identity is deterministic on a given IEEE-754 platform and generator version.
 
 ## Roadmap
@@ -157,7 +158,7 @@ Default posture is temporary local analysis. Cloud retention, if used later, mus
 3. Immersive 3D organism
 4. Comparison, mutation, anomaly workspace — done
 5. Galaxy mode / multi-file embedding — done
-6. Evolution / Git snapshots
+6. Evolution / Git snapshots — done
 7. ML experiments, auth, collaboration
 
 ## License

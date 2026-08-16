@@ -176,6 +176,12 @@ export interface EvolutionSeries {
   snapshots: EvolutionSnapshot[];
 }
 
+export interface EvolutionGitRequest {
+  repo: string;
+  path: string;
+  max_commits?: number;
+}
+
 export interface FileSummary {
   entropy: number;
   complexity: number;

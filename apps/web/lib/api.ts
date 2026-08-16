@@ -4,6 +4,7 @@ import type {
   CompareRequest,
   CompareResponse,
   CreateEvolutionRequest,
+  EvolutionGitRequest,
   EvolutionSeries,
   EvolutionSnapshotInput,
   FileDna,
@@ -142,6 +143,22 @@ export function getEvolution(id: string): Promise<EvolutionSeries> {
 
 export function listEvolution(): Promise<EvolutionSeries[]> {
   return request<EvolutionSeries[]>("/api/v1/evolution");
+}
+
+export function importEvolutionFromGit(
+  repo: string,
+  path: string,
+  maxCommits = 8,
+): Promise<EvolutionSeries> {
+  return request<EvolutionSeries>("/api/v1/evolution/git", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      repo,
+      path,
+      max_commits: maxCommits,
+    } satisfies EvolutionGitRequest),
+  });
 }
 
 export function getProgress(id: string): Promise<ProgressEvent> {
