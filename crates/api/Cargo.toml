@@ -35,6 +35,10 @@ tokio-stream = { version = "0.1", features = ["sync"] }
 aws-config = { version = "1", features = ["behavior-version-latest"] }
 aws-credential-types = "1"
 aws-sdk-s3 = "1"
+argon2 = { version = "0.5", features = ["std"] }
+rand = "0.8"
+sha2 = "0.10"
+hex = { workspace = true }
 
 [dev-dependencies]
 tower = { version = "0.5", features = ["util"] }

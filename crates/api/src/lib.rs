@@ -1,3 +1,4 @@
+pub mod auth;
 pub mod config;
 pub mod db;
 pub mod error;
@@ -23,13 +24,14 @@ use tower_http::cors::{Any, CorsLayer};
 use tower_http::timeout::TimeoutLayer;
 use tower_http::trace::TraceLayer;
 
+use crate::auth::auth_middleware;
 use crate::config::AppConfig;
 use crate::rate::rate_middleware;
 use crate::routes::{
-    compare_analyses, create_analysis, create_demo, create_evolution, create_evolution_from_git,
-    detect_mutations, experiment_isolation, experiment_knn_density, galaxy, get_analysis,
-    get_anomalies, get_dna, get_evolution, health, list_analyses, list_demos, list_evolution,
-    not_implemented, progress_latest, progress_sse,
+    auth_login, auth_logout, auth_me, auth_register, compare_analyses, create_analysis, create_demo,
+    create_evolution, create_evolution_from_git, detect_mutations, experiment_isolation,
+    experiment_knn_density, galaxy, get_analysis, get_anomalies, get_dna, get_evolution, health,
+    list_analyses, list_demos, list_evolution, not_implemented, progress_latest, progress_sse,
 };
 use crate::state::AppState;
 
@@ -68,8 +70,16 @@ pub fn app(state: AppState) -> Router {
             "/api/v1/experiments/knn-density",
             post(experiment_knn_density),
         )
+        .route("/api/v1/auth/register", post(auth_register))
+        .route("/api/v1/auth/login", post(auth_login))
+        .route("/api/v1/auth/logout", post(auth_logout))
+        .route("/api/v1/auth/me", get(auth_me))
         .route("/api/v1/export", post(not_implemented))
         .layer(DefaultBodyLimit::max(max))
+        .layer(middleware::from_fn_with_state(
+            state.clone(),
+            auth_middleware,
+        ))
         .layer(middleware::from_fn_with_state(
             state.clone(),
             rate_middleware,

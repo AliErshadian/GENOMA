@@ -1,6 +1,8 @@
 import type {
   AnalysisSummary,
   Anomaly,
+  AuthResponse,
+  AuthUser,
   CompareRequest,
   CompareResponse,
   CreateEvolutionRequest,
@@ -26,11 +28,26 @@ export class ApiError extends Error {
   }
 }
 
+const TOKEN_KEY = "genoma_token";
+
+export function getAuthToken(): string | null {
+  if (typeof window === "undefined") return null;
+  return window.localStorage.getItem(TOKEN_KEY);
+}
+
+export function setAuthToken(token: string | null): void {
+  if (typeof window === "undefined") return;
+  if (token) window.localStorage.setItem(TOKEN_KEY, token);
+  else window.localStorage.removeItem(TOKEN_KEY);
+}
+
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
+  const token = getAuthToken();
   const response = await fetch(path, {
     ...init,
     headers: {
       Accept: "application/json",
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
       ...init?.headers,
     },
   });
@@ -187,6 +204,38 @@ export function getProgress(id: string): Promise<ProgressEvent> {
 
 export function listDemos(): Promise<string[]> {
   return request<string[]>("/api/v1/demos");
+}
+
+export async function register(email: string, password: string): Promise<AuthResponse> {
+  const result = await request<AuthResponse>("/api/v1/auth/register", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ email, password }),
+  });
+  setAuthToken(result.token);
+  return result;
+}
+
+export async function login(email: string, password: string): Promise<AuthResponse> {
+  const result = await request<AuthResponse>("/api/v1/auth/login", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ email, password }),
+  });
+  setAuthToken(result.token);
+  return result;
+}
+
+export async function logout(): Promise<void> {
+  try {
+    await request<{ ok: boolean }>("/api/v1/auth/logout", { method: "POST" });
+  } finally {
+    setAuthToken(null);
+  }
+}
+
+export function authMe(): Promise<AuthUser> {
+  return request<AuthUser>("/api/v1/auth/me");
 }
 
 export async function loadDemoDna(): Promise<FileDna> {

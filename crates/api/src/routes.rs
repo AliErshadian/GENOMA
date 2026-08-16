@@ -2,7 +2,7 @@ use std::convert::Infallible;
 use std::time::Duration;
 
 use analysis_engine::Stage;
-use axum::extract::{Multipart, Path, Query, State};
+use axum::extract::{Extension, Multipart, Path, Query, State};
 use axum::response::sse::{Event, KeepAlive, Sse};
 use axum::Json;
 use chrono::Utc;
@@ -11,6 +11,7 @@ use futures_util::StreamExt;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
+use crate::auth::AuthContext;
 use crate::error::{ApiError, ApiResult};
 use crate::jobs::spawn_analysis_job;
 use crate::security::{sniff_mime, validate_filename, validate_size};
@@ -845,4 +846,44 @@ pub async fn not_implemented() -> ApiError {
         "not_implemented",
         "This endpoint is reserved for a later GENOMA phase",
     )
+}
+
+#[derive(Deserialize)]
+pub struct AuthCredentials {
+    pub email: String,
+    pub password: String,
+}
+
+#[derive(Serialize)]
+pub struct AuthResponse {
+    pub token: String,
+    pub user: crate::auth::AuthUser,
+}
+
+pub async fn auth_register(
+    State(state): State<AppState>,
+    Json(body): Json<AuthCredentials>,
+) -> ApiResult<Json<AuthResponse>> {
+    let (user, token) = state.auth.register(&body.email, &body.password).await?;
+    Ok(Json(AuthResponse { token, user }))
+}
+
+pub async fn auth_login(
+    State(state): State<AppState>,
+    Json(body): Json<AuthCredentials>,
+) -> ApiResult<Json<AuthResponse>> {
+    let (user, token) = state.auth.login(&body.email, &body.password).await?;
+    Ok(Json(AuthResponse { token, user }))
+}
+
+pub async fn auth_logout(
+    State(state): State<AppState>,
+    Extension(ctx): Extension<AuthContext>,
+) -> ApiResult<Json<serde_json::Value>> {
+    state.auth.logout(ctx.token_id).await?;
+    Ok(Json(serde_json::json!({ "ok": true })))
+}
+
+pub async fn auth_me(Extension(ctx): Extension<AuthContext>) -> Json<crate::auth::AuthUser> {
+    Json(ctx.user)
 }

@@ -352,3 +352,126 @@ async fn experiments_isolation_and_knn() {
     assert_eq!(knn["method"], "knn_density_v1");
     assert_eq!(knn["scores"].as_array().unwrap().len(), 2);
 }
+
+async fn test_app_auth_required() -> axum::Router {
+    ensure_demo_evolve_repo();
+    let mut config = AppConfig::for_tests(workspace_root());
+    config.blob_dir = std::env::temp_dir().join(format!("genoma-auth-{}", uuid::Uuid::new_v4()));
+    config.auth_required = true;
+    let state = AppState::with_backends(config, None, None)
+        .await
+        .expect("auth test state");
+    app(state)
+}
+
+async fn post_json_auth(
+    app: &axum::Router,
+    uri: &str,
+    body: Value,
+    token: Option<&str>,
+) -> (StatusCode, Value) {
+    let mut builder = Request::builder()
+        .method("POST")
+        .uri(uri)
+        .header("content-type", "application/json");
+    if let Some(token) = token {
+        builder = builder.header("authorization", format!("Bearer {token}"));
+    }
+    let response = app
+        .clone()
+        .oneshot(builder.body(Body::from(serde_json::to_vec(&body).unwrap())).unwrap())
+        .await
+        .unwrap();
+    let status = response.status();
+    let bytes = axum::body::to_bytes(response.into_body(), usize::MAX)
+        .await
+        .unwrap();
+    let value = serde_json::from_slice(&bytes).unwrap_or(Value::Null);
+    (status, value)
+}
+
+async fn get_auth(app: &axum::Router, uri: &str, token: Option<&str>) -> (StatusCode, Value) {
+    let mut builder = Request::builder().method("GET").uri(uri);
+    if let Some(token) = token {
+        builder = builder.header("authorization", format!("Bearer {token}"));
+    }
+    let response = app
+        .clone()
+        .oneshot(builder.body(Body::empty()).unwrap())
+        .await
+        .unwrap();
+    let status = response.status();
+    let bytes = axum::body::to_bytes(response.into_body(), usize::MAX)
+        .await
+        .unwrap();
+    let value = serde_json::from_slice(&bytes).unwrap_or(Value::Null);
+    (status, value)
+}
+
+#[tokio::test]
+async fn auth_register_login_me_and_gate_when_required() {
+    let app = test_app_auth_required().await;
+
+    let (denied, _) = json_request(&app, "POST", "/api/v1/analyses/demo?file=sample.txt").await;
+    assert_eq!(denied, StatusCode::UNAUTHORIZED);
+
+    let email = format!("user-{}@example.com", uuid::Uuid::new_v4());
+    let (reg_status, reg) = post_json_auth(
+        &app,
+        "/api/v1/auth/register",
+        serde_json::json!({ "email": email, "password": "password123" }),
+        None,
+    )
+    .await;
+    assert_eq!(reg_status, StatusCode::OK);
+    let token = reg["token"].as_str().expect("token");
+    assert_eq!(reg["user"]["email"], email);
+
+    let (me_status, me) = get_auth(&app, "/api/v1/auth/me", Some(token)).await;
+    assert_eq!(me_status, StatusCode::OK);
+    assert_eq!(me["email"], email);
+
+    let (login_status, login) = post_json_auth(
+        &app,
+        "/api/v1/auth/login",
+        serde_json::json!({ "email": email, "password": "password123" }),
+        None,
+    )
+    .await;
+    assert_eq!(login_status, StatusCode::OK);
+    assert!(login["token"].as_str().is_some());
+
+    let (logout_status, _) = post_json_auth(&app, "/api/v1/auth/logout", Value::Null, Some(token)).await;
+    assert_eq!(logout_status, StatusCode::OK);
+    let (me_after, _) = get_auth(&app, "/api/v1/auth/me", Some(token)).await;
+    assert_eq!(me_after, StatusCode::UNAUTHORIZED);
+}
+
+#[tokio::test]
+async fn auth_demo_with_bearer_when_required() {
+    let app = test_app_auth_required().await;
+    let email = format!("demo-{}@example.com", uuid::Uuid::new_v4());
+    let (reg_status, reg) = post_json_auth(
+        &app,
+        "/api/v1/auth/register",
+        serde_json::json!({ "email": email, "password": "password123" }),
+        None,
+    )
+    .await;
+    assert_eq!(reg_status, StatusCode::OK);
+    let token = reg["token"].as_str().unwrap();
+
+    let response = app
+        .clone()
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/api/v1/analyses/demo?file=sample.txt")
+                .header("authorization", format!("Bearer {token}"))
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::OK);
+}

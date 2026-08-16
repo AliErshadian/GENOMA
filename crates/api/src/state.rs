@@ -6,6 +6,7 @@ use redis::AsyncCommands;
 use tracing::warn;
 use uuid::Uuid;
 
+use crate::auth::AuthStore;
 use crate::config::AppConfig;
 use crate::evolution::EvolutionStore;
 use crate::progress::ProgressHub;
@@ -17,6 +18,7 @@ pub struct AppState {
     pub config: AppConfig,
     pub store: AnalysisStore,
     pub evolution: EvolutionStore,
+    pub auth: AuthStore,
     pub blobs: BlobStore,
     pub progress: ProgressHub,
     pub redis: Option<redis::aio::MultiplexedConnection>,
@@ -47,7 +49,8 @@ impl AppState {
         Ok(Self {
             config,
             store: AnalysisStore::new(postgres.clone()),
-            evolution: EvolutionStore::new(postgres),
+            evolution: EvolutionStore::new(postgres.clone()),
+            auth: AuthStore::new(postgres),
             blobs,
             progress: ProgressHub::new(),
             redis,

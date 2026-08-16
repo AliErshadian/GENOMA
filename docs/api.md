@@ -33,4 +33,10 @@ Without PostgreSQL, jobs live in memory (refresh after restart loses them). With
 - `POST /api/v1/evolution/git` — body `{ "repo", "path", "max_commits"? }`; imports commits from an allowlisted repo under `data/repos/` (cap 10), analyzes each revision, returns a series
 - `POST /api/v1/experiments/isolation` — body `{ "analysis_id" }`; deterministic isolation path-length heuristic (experimental)
 - `POST /api/v1/experiments/knn-density` — body `{ "analysis_ids", "k"? }`; mean distance to k nearest neighbors (experimental)
+- `POST /api/v1/auth/register` — body `{ "email", "password" }` (min 8 chars); returns `{ token, user }`
+- `POST /api/v1/auth/login` — same body; returns `{ token, user }`
+- `POST /api/v1/auth/logout` — revokes current Bearer token
+- `GET /api/v1/auth/me` — current user (requires Bearer)
 - `POST /api/v1/export` — 501
+
+Auth is **optional by default** (`GENOMA_AUTH_REQUIRED=false`). When `true`, mutating and private routes require `Authorization: Bearer <token>` except health, demos list, register, and login.

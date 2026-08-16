@@ -196,6 +196,17 @@ export interface ExperimentResult {
   scores: ExperimentScore[];
 }
 
+export interface AuthUser {
+  id: string;
+  email: string;
+  created_at: string;
+}
+
+export interface AuthResponse {
+  token: string;
+  user: AuthUser;
+}
+
 export interface FileSummary {
   entropy: number;
   complexity: number;

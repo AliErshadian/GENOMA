@@ -152,7 +152,7 @@ See [docs/visualization.md](docs/visualization.md). Particle positions, colors, 
 
 ## Security
 
-Uploaded files are untrusted bytes. GENOMA never executes them, never dynamically imports them, and streams them to object storage / disk. Names are sanitized, extensions are allowlisted, size is capped, and processing is bounded-memory. Authentication is not enabled in Phase 1; the API is structured so it can be added later.
+Uploaded files are untrusted bytes. GENOMA never executes them, never dynamically imports them, and streams them to object storage / disk. Names are sanitized, extensions are allowlisted, size is capped, and processing is bounded-memory. Local email/password auth with Bearer API tokens is available; it is **off by default** (`GENOMA_AUTH_REQUIRED=false`) so demos and CI stay token-free.
 
 ## Privacy
 

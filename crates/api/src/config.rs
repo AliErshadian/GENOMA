@@ -29,6 +29,7 @@ pub struct AppConfig {
     pub blob_dir: PathBuf,
     pub storage_backend: StorageBackend,
     pub s3: Option<S3Config>,
+    pub auth_required: bool,
     pub pi_digits_path: PathBuf,
     pub demo_dir: PathBuf,
     pub git_repos_dir: PathBuf,
@@ -77,6 +78,9 @@ impl AppConfig {
             blob_dir: PathBuf::from(env_or("GENOMA_BLOB_DIR", "./data/uploads")),
             storage_backend,
             s3,
+            auth_required: env_or("GENOMA_AUTH_REQUIRED", "false")
+                .parse()
+                .unwrap_or(false),
             pi_digits_path: PathBuf::from(env_or(
                 "GENOMA_PI_DIGITS_PATH",
                 "./data/pi/pi-digits.bin",
@@ -118,6 +122,7 @@ impl AppConfig {
             blob_dir: root.join("uploads"),
             storage_backend: StorageBackend::Fs,
             s3: None,
+            auth_required: false,
             pi_digits_path: root.join("data/pi/pi-digits.bin"),
             demo_dir: root.join("data/demos"),
             git_repos_dir: root.join("data/repos"),
