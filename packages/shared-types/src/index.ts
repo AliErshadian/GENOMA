@@ -135,10 +135,12 @@ export interface GalaxyNode {
   repetition: number;
   chunk_count: number;
   generator_version: string;
+  cluster_id: number;
 }
 
 export interface GalaxyResponse {
   nodes: GalaxyNode[];
+  cluster_count: number;
 }
 
 export interface FileSummary {

@@ -1,11 +1,13 @@
-//! Streaming analysis pipeline, similarity, statistical anomalies, and mutations.
+//! Streaming analysis pipeline, similarity, anomalies, mutations, clustering, and embedding.
 
 mod anomaly;
+mod cluster;
 mod mutation;
 mod pipeline;
 mod similarity;
 
 pub use anomaly::{detect_anomalies, Anomaly};
+pub use cluster::{cluster_files, CLUSTER_DISTANCE_CUT};
 pub use mutation::{detect_mutations, Mutation};
 pub use pipeline::{
     analyze_reader, AnalysisResult, NoopProgress, ProgressEvent, ProgressSink, Stage,

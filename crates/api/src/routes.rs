@@ -327,11 +327,13 @@ pub struct GalaxyNode {
     pub repetition: f64,
     pub chunk_count: u64,
     pub generator_version: String,
+    pub cluster_id: u32,
 }
 
 #[derive(Serialize)]
 pub struct GalaxyResponse {
     pub nodes: Vec<GalaxyNode>,
+    pub cluster_count: u32,
 }
 
 pub async fn galaxy(
@@ -352,11 +354,12 @@ pub async fn galaxy(
         return Err(ApiError::bad_request("analysis_ids capped at 50"));
     }
 
-    let mut nodes = Vec::with_capacity(ids.len());
-    for id in ids {
+    let mut records = Vec::with_capacity(ids.len());
+    let mut dnas = Vec::with_capacity(ids.len());
+    for id in &ids {
         let record = state
             .store
-            .get(id)
+            .get(*id)
             .await
             .ok_or_else(|| ApiError::not_found(format!("analysis not found: {id}")))?;
         if record.status != Stage::Complete {
@@ -364,20 +367,35 @@ pub async fn galaxy(
         }
         let dna = record
             .dna
-            .as_ref()
+            .clone()
             .ok_or_else(|| ApiError::conflict(format!("analysis is not complete: {id}")))?;
+        dnas.push(dna);
+        records.push(record);
+    }
+
+    let labels = analysis_engine::cluster_files(&dnas);
+    let cluster_count = labels.iter().copied().max().map(|m| m + 1).unwrap_or(0);
+
+    let mut nodes = Vec::with_capacity(ids.len());
+    for (idx, id) in ids.into_iter().enumerate() {
+        let record = &records[idx];
+        let dna = &dnas[idx];
         nodes.push(GalaxyNode {
             id,
-            name: record.original_name,
+            name: record.original_name.clone(),
             size_bytes: record.size_bytes,
             entropy: dna.raw.entropy,
             complexity: dna.raw.complexity,
             repetition: dna.raw.repetition,
             chunk_count: dna.chunk_count,
             generator_version: dna.generator_version.clone(),
+            cluster_id: labels[idx],
         });
     }
-    Ok(Json(GalaxyResponse { nodes }))
+    Ok(Json(GalaxyResponse {
+        nodes,
+        cluster_count,
+    }))
 }
 
 pub async fn progress_latest(

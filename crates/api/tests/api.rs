@@ -224,6 +224,8 @@ async fn galaxy_returns_nodes_for_completed_analyses() {
     assert!(nodes.iter().any(|node| node["id"] == b_id));
     assert!(nodes[0]["entropy"].as_f64().is_some());
     assert!(nodes[0]["generator_version"].as_str().unwrap() == "dna-v1");
+    assert!(nodes[0]["cluster_id"].as_u64().is_some());
+    assert!(body["cluster_count"].as_u64().unwrap() >= 1);
 
     let (empty_status, _) = post_json(
         &app,
