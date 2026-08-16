@@ -16,6 +16,8 @@ import type {
   MutationsRequest,
   MutationsResponse,
   ProgressEvent,
+  Team,
+  TeamMember,
 } from "@genoma/shared-types";
 
 export class ApiError extends Error {
@@ -236,6 +238,42 @@ export async function logout(): Promise<void> {
 
 export function authMe(): Promise<AuthUser> {
   return request<AuthUser>("/api/v1/auth/me");
+}
+
+export function listTeams(): Promise<Team[]> {
+  return request("/api/v1/teams");
+}
+
+export function createTeam(name: string): Promise<Team> {
+  return request("/api/v1/teams", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ name }),
+  });
+}
+
+export function addTeamMember(teamId: string, email: string): Promise<TeamMember> {
+  return request(`/api/v1/teams/${teamId}/members`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ email }),
+  });
+}
+
+export function listTeamMembers(teamId: string): Promise<TeamMember[]> {
+  return request(`/api/v1/teams/${teamId}/members`);
+}
+
+export function listTeamAnalyses(teamId: string): Promise<AnalysisSummary[]> {
+  return request(`/api/v1/teams/${teamId}/analyses`);
+}
+
+export function shareAnalysis(analysisId: string, teamId: string): Promise<{ ok: boolean }> {
+  return request(`/api/v1/analyses/${analysisId}/share`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ team_id: teamId }),
+  });
 }
 
 export async function loadDemoDna(): Promise<FileDna> {

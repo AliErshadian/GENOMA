@@ -122,6 +122,14 @@ export function WorkspaceChrome({
           >
             Experiments
           </Link>
+          <Link
+            href="/teams"
+            className={`block rounded-lg px-3 py-2 font-mono text-[11px] tracking-[0.14em] ${
+              pathname === "/teams" ? "bg-white/5 text-cyan" : "text-core/70 hover:text-core"
+            }`}
+          >
+            Teams
+          </Link>
         </nav>
       </aside>
       <main className="absolute inset-0">{children}</main>

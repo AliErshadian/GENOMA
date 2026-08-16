@@ -207,6 +207,21 @@ export interface AuthResponse {
   user: AuthUser;
 }
 
+export interface Team {
+  id: string;
+  name: string;
+  created_by: string;
+  created_at: string;
+}
+
+export interface TeamMember {
+  team_id: string;
+  user_id: string;
+  email: string;
+  role: string;
+  created_at: string;
+}
+
 export interface FileSummary {
   entropy: number;
   complexity: number;

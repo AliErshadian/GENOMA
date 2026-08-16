@@ -26,6 +26,7 @@ pub struct AnalysisRecord {
     pub dna: Option<FileDna>,
     pub anomalies: Vec<Anomaly>,
     pub progress: Option<ProgressEvent>,
+    pub owner_user_id: Option<Uuid>,
 }
 
 #[derive(Clone, Default)]

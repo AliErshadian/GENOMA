@@ -11,6 +11,9 @@ use axum::extract::{Request, State};
 use axum::http::{header, Method};
 use axum::middleware::Next;
 use axum::response::IntoResponse;
+use axum::extract::FromRequestParts;
+use axum::http::request::Parts;
+use std::convert::Infallible;
 use chrono::{DateTime, Utc};
 use rand::RngCore;
 use serde::{Deserialize, Serialize};
@@ -414,5 +417,39 @@ fn bearer_token(headers: &axum::http::HeaderMap) -> Option<String> {
         None
     } else {
         Some(token.to_string())
+    }
+}
+
+/// Present when a valid Bearer token was supplied.
+#[derive(Clone)]
+pub struct OptionalAuth(pub Option<AuthContext>);
+
+impl<S> FromRequestParts<S> for OptionalAuth
+where
+    S: Send + Sync,
+{
+    type Rejection = Infallible;
+
+    async fn from_request_parts(parts: &mut Parts, _state: &S) -> Result<Self, Self::Rejection> {
+        Ok(Self(parts.extensions.get::<AuthContext>().cloned()))
+    }
+}
+
+/// Requires a valid Bearer token (returns 401 otherwise).
+pub struct RequireAuth(pub AuthContext);
+
+impl<S> FromRequestParts<S> for RequireAuth
+where
+    S: Send + Sync,
+{
+    type Rejection = ApiError;
+
+    async fn from_request_parts(parts: &mut Parts, _state: &S) -> Result<Self, Self::Rejection> {
+        parts
+            .extensions
+            .get::<AuthContext>()
+            .cloned()
+            .map(Self)
+            .ok_or_else(|| ApiError::unauthorized("authentication required"))
     }
 }

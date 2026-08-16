@@ -475,3 +475,91 @@ async fn auth_demo_with_bearer_when_required() {
         .unwrap();
     assert_eq!(response.status(), StatusCode::OK);
 }
+
+#[tokio::test]
+async fn team_share_round_trip_with_auth_required() {
+    let app = test_app_auth_required().await;
+
+    let owner_email = format!("owner-{}@example.com", uuid::Uuid::new_v4());
+    let member_email = format!("member-{}@example.com", uuid::Uuid::new_v4());
+    let (owner_status, owner) = post_json_auth(
+        &app,
+        "/api/v1/auth/register",
+        serde_json::json!({ "email": owner_email, "password": "password123" }),
+        None,
+    )
+    .await;
+    assert_eq!(owner_status, StatusCode::OK);
+    let owner_token = owner["token"].as_str().unwrap();
+
+    let (member_status, _) = post_json_auth(
+        &app,
+        "/api/v1/auth/register",
+        serde_json::json!({ "email": member_email, "password": "password123" }),
+        None,
+    )
+    .await;
+    assert_eq!(member_status, StatusCode::OK);
+
+    let (team_status, team) = post_json_auth(
+        &app,
+        "/api/v1/teams",
+        serde_json::json!({ "name": "Lab" }),
+        Some(owner_token),
+    )
+    .await;
+    assert_eq!(team_status, StatusCode::OK);
+    let team_id = team["id"].as_str().unwrap();
+
+    let (invite_status, _) = post_json_auth(
+        &app,
+        &format!("/api/v1/teams/{team_id}/members"),
+        serde_json::json!({ "email": member_email }),
+        Some(owner_token),
+    )
+    .await;
+    assert_eq!(invite_status, StatusCode::OK);
+
+    let demo = app
+        .clone()
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/api/v1/analyses/demo?file=sample.txt")
+                .header("authorization", format!("Bearer {owner_token}"))
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(demo.status(), StatusCode::OK);
+    let demo_body = axum::body::to_bytes(demo.into_body(), usize::MAX)
+        .await
+        .unwrap();
+    let demo_json: Value = serde_json::from_slice(&demo_body).unwrap();
+    let analysis_id = demo_json["id"].as_str().unwrap();
+
+    let (share_status, _) = post_json_auth(
+        &app,
+        &format!("/api/v1/analyses/{analysis_id}/share"),
+        serde_json::json!({ "team_id": team_id }),
+        Some(owner_token),
+    )
+    .await;
+    assert_eq!(share_status, StatusCode::OK);
+
+    let (list_status, listed) = get_auth(
+        &app,
+        &format!("/api/v1/teams/{team_id}/analyses"),
+        Some(owner_token),
+    )
+    .await;
+    assert_eq!(list_status, StatusCode::OK);
+    let ids: Vec<&str> = listed
+        .as_array()
+        .unwrap()
+        .iter()
+        .filter_map(|item| item["id"].as_str())
+        .collect();
+    assert!(ids.contains(&analysis_id));
+}

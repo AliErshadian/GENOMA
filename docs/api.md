@@ -37,6 +37,10 @@ Without PostgreSQL, jobs live in memory (refresh after restart loses them). With
 - `POST /api/v1/auth/login` — same body; returns `{ token, user }`
 - `POST /api/v1/auth/logout` — revokes current Bearer token
 - `GET /api/v1/auth/me` — current user (requires Bearer)
+- `GET /api/v1/teams` / `POST /api/v1/teams` — list / create teams (requires Bearer)
+- `GET /api/v1/teams/{id}/members` / `POST /api/v1/teams/{id}/members` — list / invite by email
+- `GET /api/v1/teams/{id}/analyses` — analyses shared with the team
+- `POST /api/v1/analyses/{id}/share` — body `{ "team_id" }` (owner shares read access)
 - `POST /api/v1/export` — 501
 
-Auth is **optional by default** (`GENOMA_AUTH_REQUIRED=false`). When `true`, mutating and private routes require `Authorization: Bearer <token>` except health, demos list, register, and login.
+Auth is **optional by default** (`GENOMA_AUTH_REQUIRED=false`). When `true`, mutating and private routes require `Authorization: Bearer <token>` except health, demos list, register, and login. Analysis listing is then scoped to owned + team-shared items. Team collaboration always needs a Bearer token.

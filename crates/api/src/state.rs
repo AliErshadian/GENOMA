@@ -12,6 +12,7 @@ use crate::evolution::EvolutionStore;
 use crate::progress::ProgressHub;
 use crate::storage::BlobStore;
 use crate::store::AnalysisStore;
+use crate::teams::TeamStore;
 
 #[derive(Clone)]
 pub struct AppState {
@@ -19,6 +20,7 @@ pub struct AppState {
     pub store: AnalysisStore,
     pub evolution: EvolutionStore,
     pub auth: AuthStore,
+    pub teams: TeamStore,
     pub blobs: BlobStore,
     pub progress: ProgressHub,
     pub redis: Option<redis::aio::MultiplexedConnection>,
@@ -50,7 +52,8 @@ impl AppState {
             config,
             store: AnalysisStore::new(postgres.clone()),
             evolution: EvolutionStore::new(postgres.clone()),
-            auth: AuthStore::new(postgres),
+            auth: AuthStore::new(postgres.clone()),
+            teams: TeamStore::new(postgres),
             blobs,
             progress: ProgressHub::new(),
             redis,

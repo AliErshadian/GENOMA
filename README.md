@@ -130,6 +130,11 @@ pnpm --filter @genoma/web lint
 | POST | `/api/v1/evolution` | Create evolution series from completed analyses |
 | GET | `/api/v1/evolution/:id` | Evolution series with ordered snapshots |
 | POST | `/api/v1/evolution/git` | Import allowlisted git file history as a series |
+| POST | `/api/v1/auth/register` | Create local user + Bearer token |
+| POST | `/api/v1/auth/login` | Exchange credentials for token |
+| GET | `/api/v1/auth/me` | Current user |
+| GET/POST | `/api/v1/teams` | List / create teams |
+| POST | `/api/v1/analyses/:id/share` | Share analysis with a team |
 | POST | `/api/v1/export` | Reserved (later phase) |
 
 Progress events are real pipeline stages, not animations:
@@ -162,7 +167,7 @@ Default posture is temporary local analysis. Cloud retention, if used later, mus
 
 - Bundled π dataset is 100,000 decimal digits. Larger offsets wrap; wrap is recorded on the fingerprint.
 - Similarity and anomaly scores are heuristic/statistical, not proven metrics.
-- Export and auth are roadmap — not faked in the UI.
+- Auth is optional by default (`GENOMA_AUTH_REQUIRED=false`); team collaboration requires a signed-in Bearer token.
 - DNA identity is deterministic on a given IEEE-754 platform and generator version.
 
 ## Roadmap
@@ -173,8 +178,7 @@ Default posture is temporary local analysis. Cloud retention, if used later, mus
 4. Comparison, mutation, anomaly workspace — done
 5. Galaxy mode / multi-file embedding — done
 6. Evolution / Git snapshots — done
-7. ML experiments, auth, collaboration
-
+7. ML experiments, auth, collaboration — done
 ## License
 
 MIT. See [LICENSE](LICENSE) and [docs/DISCLAIMER.md](docs/DISCLAIMER.md).

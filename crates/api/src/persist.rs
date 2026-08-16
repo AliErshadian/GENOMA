@@ -20,8 +20,8 @@ async fn save_record_inner(pool: &PgPool, record: &AnalysisRecord) -> Result<(),
     let config = Json(record.config.clone());
     sqlx::query(
         r#"
-        INSERT INTO analyses (id, status, original_name, size_bytes, mime_type, storage_key, config, error, created_at, completed_at)
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+        INSERT INTO analyses (id, status, original_name, size_bytes, mime_type, storage_key, config, error, created_at, completed_at, owner_user_id)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
         ON CONFLICT (id) DO UPDATE SET
             status = EXCLUDED.status,
             original_name = EXCLUDED.original_name,
@@ -30,7 +30,8 @@ async fn save_record_inner(pool: &PgPool, record: &AnalysisRecord) -> Result<(),
             storage_key = EXCLUDED.storage_key,
             config = EXCLUDED.config,
             error = EXCLUDED.error,
-            completed_at = EXCLUDED.completed_at
+            completed_at = EXCLUDED.completed_at,
+            owner_user_id = COALESCE(EXCLUDED.owner_user_id, analyses.owner_user_id)
         "#,
     )
     .bind(record.id)
@@ -43,6 +44,7 @@ async fn save_record_inner(pool: &PgPool, record: &AnalysisRecord) -> Result<(),
     .bind(&record.error)
     .bind(record.created_at)
     .bind(record.completed_at)
+    .bind(record.owner_user_id)
     .execute(pool)
     .await?;
 
@@ -152,7 +154,7 @@ async fn load_record_inner(
 ) -> Result<Option<AnalysisRecord>, sqlx::Error> {
     let row = sqlx::query_as::<_, AnalysisRow>(
         r#"
-        SELECT id, status, original_name, size_bytes, mime_type, storage_key, config, error, created_at, completed_at
+        SELECT id, status, original_name, size_bytes, mime_type, storage_key, config, error, created_at, completed_at, owner_user_id
         FROM analyses
         WHERE id = $1
         "#,
@@ -218,6 +220,7 @@ async fn load_record_inner(
         dna: payload.map(|json| json.0),
         anomalies: details.into_iter().map(|json| json.0).collect(),
         progress,
+        owner_user_id: row.owner_user_id,
     }))
 }
 
@@ -246,6 +249,7 @@ struct AnalysisRow {
     error: Option<String>,
     created_at: DateTime<Utc>,
     completed_at: Option<DateTime<Utc>>,
+    owner_user_id: Option<Uuid>,
 }
 
 #[derive(sqlx::FromRow)]
