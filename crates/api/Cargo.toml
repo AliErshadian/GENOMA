@@ -1,0 +1,37 @@
+[package]
+name = "genoma-api"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "GENOMA HTTP API — upload, jobs, progress, DNA"
+
+[[bin]]
+name = "genoma-api"
+path = "src/main.rs"
+
+[dependencies]
+genoma-core = { workspace = true }
+pi-engine = { workspace = true }
+feature-engine = { workspace = true }
+dna-engine = { workspace = true }
+analysis-engine = { workspace = true }
+anyhow = { workspace = true }
+thiserror = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+bytes = { workspace = true }
+uuid = { workspace = true }
+tokio = { workspace = true }
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true }
+axum = { version = "0.8", features = ["multipart", "macros"] }
+tower = { version = "0.5", features = ["limit"] }
+tower-http = { version = "0.6", features = ["cors", "trace", "limit", "timeout"] }
+sqlx = { version = "0.8", features = ["runtime-tokio-rustls", "postgres", "uuid", "chrono", "json", "migrate"] }
+chrono = { version = "0.4", features = ["serde"] }
+futures-util = "0.3"
+tokio-stream = { version = "0.1", features = ["sync"] }
+
+[dev-dependencies]
+tower = { version = "0.5", features = ["util"] }
+http-body-util = "0.1"

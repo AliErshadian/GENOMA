@@ -1,0 +1,15 @@
+[package]
+name = "dna-engine"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Deterministic Digital DNA generation from features and π"
+
+[dependencies]
+genoma-core = { workspace = true }
+pi-engine = { workspace = true }
+feature-engine = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+
+[dev-dependencies]

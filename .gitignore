@@ -1,0 +1,41 @@
+# Rust
+/target
+**/*.rs.bk
+Cargo.lock.bak
+
+# Node
+node_modules
+.pnpm-store
+apps/web/.next
+apps/web/out
+apps/web/.turbo
+*.tsbuildinfo
+
+# Env
+.env
+.env.local
+.env.*.local
+!.env.example
+
+# IDE
+.idea
+.vscode/*
+!.vscode/extensions.json
+*.swp
+
+# OS
+.DS_Store
+Thumbs.db
+Desktop.ini
+
+# Uploads / runtime
+data/uploads/
+data/tmp/
+*.log
+
+# sqlx
+.sqlx
+
+# Coverage
+coverage
+lcov.info

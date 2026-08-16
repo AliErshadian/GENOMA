@@ -1,0 +1,16 @@
+{
+  "name": "genoma",
+  "version": "0.1.0",
+  "private": true,
+  "description": "GENOMA — the DNA of digital data",
+  "scripts": {
+    "dev": "pnpm --filter @genoma/web dev",
+    "build": "pnpm --filter @genoma/web build",
+    "lint": "pnpm --filter @genoma/web lint",
+    "test": "pnpm --filter @genoma/web test"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "packageManager": "pnpm@10.14.0"
+}

@@ -1,0 +1,60 @@
+pub mod config;
+pub mod db;
+pub mod error;
+pub mod jobs;
+pub mod progress;
+pub mod routes;
+pub mod security;
+pub mod state;
+pub mod storage;
+pub mod store;
+
+use std::time::Duration;
+
+use axum::extract::DefaultBodyLimit;
+use axum::routing::{get, post};
+use axum::Router;
+use tower_http::cors::{Any, CorsLayer};
+use tower_http::timeout::TimeoutLayer;
+use tower_http::trace::TraceLayer;
+
+use crate::config::AppConfig;
+use crate::routes::{
+    create_analysis, create_demo, get_analysis, get_anomalies, get_dna, health, list_demos,
+    not_implemented, progress_sse,
+};
+use crate::state::AppState;
+
+pub async fn build_state(config: AppConfig) -> crate::error::ApiResult<AppState> {
+    let _postgres = db::connect_postgres(&config).await;
+    AppState::new(config).await
+}
+
+pub fn app(state: AppState) -> Router {
+    let max = state.config.max_upload_bytes.min(usize::MAX as u64) as usize;
+    let cors = CorsLayer::new()
+        .allow_origin(Any)
+        .allow_methods(Any)
+        .allow_headers(Any);
+
+    Router::new()
+        .route("/api/v1/health", get(health))
+        .route("/api/v1/analyses", post(create_analysis))
+        .route("/api/v1/analyses/demo", post(create_demo))
+        .route("/api/v1/analyses/{id}", get(get_analysis))
+        .route("/api/v1/analyses/{id}/progress", get(progress_sse))
+        .route("/api/v1/demos", get(list_demos))
+        .route("/api/v1/dna/{id}", get(get_dna))
+        .route("/api/v1/anomalies/{id}", get(get_anomalies))
+        .route("/api/v1/compare", post(not_implemented))
+        .route("/api/v1/export", post(not_implemented))
+        .route("/api/v1/evolution/{id}", get(not_implemented))
+        .layer(DefaultBodyLimit::max(max))
+        .layer(TimeoutLayer::with_status_code(
+            axum::http::StatusCode::REQUEST_TIMEOUT,
+            Duration::from_secs(60 * 30),
+        ))
+        .layer(TraceLayer::new_for_http())
+        .layer(cors)
+        .with_state(state)
+}

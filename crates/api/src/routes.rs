@@ -1,0 +1,344 @@
+use std::convert::Infallible;
+use std::time::Duration;
+
+use analysis_engine::Stage;
+use axum::extract::{Multipart, Path, Query, State};
+use axum::response::sse::{Event, KeepAlive, Sse};
+use axum::Json;
+use chrono::Utc;
+use futures_util::stream;
+use futures_util::StreamExt;
+use serde::{Deserialize, Serialize};
+use uuid::Uuid;
+
+use crate::error::{ApiError, ApiResult};
+use crate::jobs::spawn_analysis_job;
+use crate::security::{sniff_mime, validate_filename, validate_size};
+use crate::state::AppState;
+use crate::storage::object_key;
+use crate::store::AnalysisRecord;
+
+#[derive(Serialize)]
+pub struct HealthResponse {
+    pub name: &'static str,
+    pub version: &'static str,
+    pub generator: &'static str,
+}
+
+pub async fn health() -> Json<HealthResponse> {
+    Json(HealthResponse {
+        name: genoma_core::PRODUCT_NAME,
+        version: env!("CARGO_PKG_VERSION"),
+        generator: genoma_core::GENERATOR_VERSION,
+    })
+}
+
+#[derive(Deserialize)]
+pub struct AnalysisQuery {
+    pub chunk_size: Option<usize>,
+    pub level: Option<String>,
+    pub pi_offset: Option<u64>,
+}
+
+#[derive(Serialize)]
+pub struct AnalysisSummary {
+    pub id: Uuid,
+    pub status: Stage,
+    pub original_name: String,
+    pub size_bytes: u64,
+    pub mime_type: Option<String>,
+    pub created_at: chrono::DateTime<Utc>,
+    pub completed_at: Option<chrono::DateTime<Utc>>,
+    pub progress: Option<analysis_engine::ProgressEvent>,
+    pub dna: Option<FileSummary>,
+    pub anomalies: usize,
+}
+
+#[derive(Serialize)]
+pub struct FileSummary {
+    pub entropy: f64,
+    pub complexity: f64,
+    pub repetition: f64,
+    pub anomalies: usize,
+    pub mutations: usize,
+    pub pi_offset: u64,
+    pub chunk_count: u64,
+    pub generator_version: String,
+}
+
+impl From<AnalysisRecord> for AnalysisSummary {
+    fn from(record: AnalysisRecord) -> Self {
+        let anomalies = record.anomalies.len();
+        let dna = record.dna.as_ref().map(|dna| FileSummary {
+            entropy: dna.raw.entropy,
+            complexity: dna.raw.complexity,
+            repetition: dna.raw.repetition,
+            anomalies,
+            mutations: 0,
+            pi_offset: dna.pi_base_offset,
+            chunk_count: dna.chunk_count,
+            generator_version: dna.generator_version.clone(),
+        });
+        Self {
+            id: record.id,
+            status: record.status,
+            original_name: record.original_name,
+            size_bytes: record.size_bytes,
+            mime_type: record.mime_type,
+            created_at: record.created_at,
+            completed_at: record.completed_at,
+            progress: record.progress,
+            dna,
+            anomalies,
+        }
+    }
+}
+
+pub async fn create_analysis(
+    State(state): State<AppState>,
+    Query(query): Query<AnalysisQuery>,
+    mut multipart: Multipart,
+) -> ApiResult<Json<AnalysisSummary>> {
+    let mut filename = None;
+    let mut mime = None;
+    let mut stored_key = None;
+    let mut size = 0_u64;
+
+    while let Some(field) = multipart
+        .next_field()
+        .await
+        .map_err(|err| ApiError::bad_request(err.to_string()))?
+    {
+        let name = field.name().unwrap_or_default().to_string();
+        if name != "file" {
+            continue;
+        }
+        let given = field
+            .file_name()
+            .map(ToOwned::to_owned)
+            .ok_or_else(|| ApiError::bad_request("missing file name"))?;
+        validate_filename(&given).map_err(ApiError::bad_request)?;
+        mime = Some(sniff_mime(&given, field.content_type()));
+        filename = Some(given.clone());
+        let id = Uuid::new_v4();
+        let key = object_key(id, &given);
+        size = state
+            .blobs
+            .put_field(&key, field, state.config.max_upload_bytes)
+            .await?;
+        if size == 0 {
+            return Err(ApiError::bad_request("empty file"));
+        }
+        stored_key = Some((id, key));
+        break;
+    }
+
+    let filename = filename.ok_or_else(|| ApiError::bad_request("file field is required"))?;
+    let (id, storage_key) = stored_key.unwrap();
+    let mut config = state.config.default_analysis.clone();
+    if let Some(size) = query.chunk_size {
+        config.chunk_size = genoma_core::ChunkSize::from_bytes(size)
+            .map_err(|err| ApiError::bad_request(err.to_string()))?;
+    }
+    if let Some(level) = query.level {
+        config.level = level
+            .parse()
+            .map_err(|err: genoma_core::Error| ApiError::bad_request(err.to_string()))?;
+    }
+    if let Some(offset) = query.pi_offset {
+        config.pi_base_offset = offset;
+    }
+
+    let record = AnalysisRecord {
+        id,
+        status: Stage::Queued,
+        original_name: filename,
+        size_bytes: size,
+        mime_type: mime,
+        storage_key,
+        config,
+        error: None,
+        created_at: Utc::now(),
+        completed_at: None,
+        dna: None,
+        anomalies: Vec::new(),
+        progress: Some(analysis_engine::ProgressEvent {
+            stage: Stage::Queued,
+            progress: 0.0,
+            processed_bytes: 0,
+            total_bytes: Some(size),
+            message: "Queued".to_string(),
+        }),
+    };
+    state.store.insert(record.clone()).await;
+    spawn_analysis_job(state.clone(), id);
+    Ok(Json(record.into()))
+}
+
+pub async fn get_analysis(
+    State(state): State<AppState>,
+    Path(id): Path<Uuid>,
+) -> ApiResult<Json<AnalysisSummary>> {
+    let record = state
+        .store
+        .get(id)
+        .await
+        .ok_or_else(|| ApiError::not_found("analysis not found"))?;
+    Ok(Json(record.into()))
+}
+
+pub async fn get_dna(
+    State(state): State<AppState>,
+    Path(id): Path<Uuid>,
+) -> ApiResult<Json<dna_engine::FileDna>> {
+    let record = state
+        .store
+        .get(id)
+        .await
+        .ok_or_else(|| ApiError::not_found("analysis not found"))?;
+    record
+        .dna
+        .ok_or_else(|| {
+            ApiError::new(
+                axum::http::StatusCode::ACCEPTED,
+                "pending",
+                "analysis is not complete",
+            )
+        })
+        .map(Json)
+}
+
+pub async fn get_anomalies(
+    State(state): State<AppState>,
+    Path(id): Path<Uuid>,
+) -> ApiResult<Json<Vec<analysis_engine::Anomaly>>> {
+    let record = state
+        .store
+        .get(id)
+        .await
+        .ok_or_else(|| ApiError::not_found("analysis not found"))?;
+    Ok(Json(record.anomalies))
+}
+
+pub async fn progress_sse(
+    State(state): State<AppState>,
+    Path(id): Path<Uuid>,
+) -> ApiResult<Sse<impl tokio_stream::Stream<Item = Result<Event, Infallible>>>> {
+    let record = state
+        .store
+        .get(id)
+        .await
+        .ok_or_else(|| ApiError::not_found("analysis not found"))?;
+    let rx = state.progress.subscribe();
+    let initial = record.progress.clone();
+    let stream = stream::once(async move {
+        if let Some(event) = initial {
+            let json = serde_json::to_string(&event).unwrap_or_else(|_| "{}".into());
+            Ok(Event::default().data(json))
+        } else {
+            Ok(Event::default().comment("waiting"))
+        }
+    })
+    .chain(async_stream(rx, id));
+
+    Ok(Sse::new(stream).keep_alive(KeepAlive::new().interval(Duration::from_secs(15))))
+}
+
+fn async_stream(
+    rx: tokio::sync::broadcast::Receiver<(Uuid, analysis_engine::ProgressEvent)>,
+    id: Uuid,
+) -> impl tokio_stream::Stream<Item = Result<Event, Infallible>> {
+    futures_util::stream::unfold(rx, move |mut rx| async move {
+        loop {
+            match rx.recv().await {
+                Ok((event_id, event)) if event_id == id => {
+                    let json = serde_json::to_string(&event).unwrap_or_else(|_| "{}".into());
+                    let item = Ok(Event::default().data(json));
+                    return Some((item, rx));
+                }
+                Ok(_) => continue,
+                Err(tokio::sync::broadcast::error::RecvError::Lagged(_)) => continue,
+                Err(_) => return None,
+            }
+        }
+    })
+}
+
+#[derive(Deserialize)]
+pub struct DemoQuery {
+    pub file: Option<String>,
+}
+
+pub async fn create_demo(
+    State(state): State<AppState>,
+    Query(query): Query<DemoQuery>,
+) -> ApiResult<Json<AnalysisSummary>> {
+    let name = query.file.unwrap_or_else(|| "sample.txt".to_string());
+    validate_filename(&name).map_err(ApiError::bad_request)?;
+    let path = state.config.demo_dir.join(&name);
+    let bytes = tokio::fs::read(&path)
+        .await
+        .map_err(|_| ApiError::not_found(format!("demo file not found: {name}")))?;
+    validate_size(bytes.len() as u64, state.config.max_upload_bytes)
+        .map_err(ApiError::payload_too_large)?;
+    let id = Uuid::new_v4();
+    let storage_key = object_key(id, &name);
+    state.blobs.put_bytes(&storage_key, &bytes).await?;
+    let record = AnalysisRecord {
+        id,
+        status: Stage::Queued,
+        original_name: name.clone(),
+        size_bytes: bytes.len() as u64,
+        mime_type: Some(sniff_mime(&name, None)),
+        storage_key,
+        config: state.config.default_analysis.clone(),
+        error: None,
+        created_at: Utc::now(),
+        completed_at: None,
+        dna: None,
+        anomalies: Vec::new(),
+        progress: Some(analysis_engine::ProgressEvent {
+            stage: Stage::Queued,
+            progress: 0.0,
+            processed_bytes: 0,
+            total_bytes: Some(bytes.len() as u64),
+            message: "Queued demo analysis".to_string(),
+        }),
+    };
+    state.store.insert(record.clone()).await;
+    spawn_analysis_job(state, id);
+    Ok(Json(record.into()))
+}
+
+pub async fn list_demos(State(state): State<AppState>) -> ApiResult<Json<Vec<String>>> {
+    let mut names = Vec::new();
+    let mut dir = tokio::fs::read_dir(&state.config.demo_dir)
+        .await
+        .map_err(|err| ApiError::internal(err.to_string()))?;
+    while let Some(entry) = dir
+        .next_entry()
+        .await
+        .map_err(|err| ApiError::internal(err.to_string()))?
+    {
+        if entry
+            .file_type()
+            .await
+            .map(|kind| kind.is_file())
+            .unwrap_or(false)
+        {
+            if let Some(name) = entry.file_name().to_str() {
+                names.push(name.to_string());
+            }
+        }
+    }
+    names.sort();
+    Ok(Json(names))
+}
+
+pub async fn not_implemented() -> ApiError {
+    ApiError::new(
+        axum::http::StatusCode::NOT_IMPLEMENTED,
+        "not_implemented",
+        "This endpoint is reserved for a later GENOMA phase",
+    )
+}
