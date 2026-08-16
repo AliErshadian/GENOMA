@@ -23,6 +23,6 @@ Hierarchical zoom has two levels (byte-region descent is later):
 
 Particles orbit on deterministic axes seeded from `hash01(chunk, i)` and `particle_velocity`. Anomaly chunks add radial distortion and a slow red pulse. Mutation chunks (when a baseline comparison is loaded) add an orange pulse. Instance colors update on highlight/hover/anomaly/mutation pulse, not every frame. Particle budget is capped at 8000 with frustum culling.
 
-Workspace overlays: hover inspect (block #, offset, size, entropy, complexity, repetition, π offset) and layer toggles (Particles / Links / Core / Anomalies / Mutations). Turning Anomalies off hides red-distorted particles. Mutations layer toggles the orange pulse only.
+Workspace overlays: hover inspect (block #, offset, size, entropy, complexity, repetition, π offset), mutation baseline picker, anomaly list (score / chunk / offset / entropy z — click selects BLOCK zoom), and layer toggles (Particles / Links / Core / Anomalies / Mutations). Turning Anomalies off hides red-distorted particles and dims the anomaly list. Mutations layer toggles the orange pulse only.
 
 Galaxy mode is not implemented in this phase and is not faked.

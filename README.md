@@ -151,7 +151,7 @@ Default posture is temporary local analysis. Cloud retention, if used later, mus
 1. Engine + vertical slice (this release)
 2. Hardened API, persistence, progress
 3. Immersive 3D organism
-4. Comparison, mutation, anomaly workspace
+4. Comparison, mutation, anomaly workspace — done
 5. Galaxy mode / multi-file embedding
 6. Evolution / Git snapshots
 7. ML experiments, auth, collaboration

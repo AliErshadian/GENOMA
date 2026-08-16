@@ -48,6 +48,7 @@ export function CompleteCard({
         className="mt-8 w-full rounded-full bg-core px-6 py-3 text-sm tracking-[0.16em] text-void"
       >
         Enter visualization
+        {summary.anomalies > 0 ? " · focus top anomaly" : ""}
       </button>
     </div>
   );
