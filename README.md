@@ -109,7 +109,7 @@ pnpm --filter @genoma/web lint
 | POST | `/api/v1/analyses/demo` | Analyze a bundled demo file |
 | GET | `/api/v1/dna/:id` | Full Digital DNA |
 | GET | `/api/v1/anomalies/:id` | Statistical anomalies |
-| POST | `/api/v1/compare` | Reserved (Phase 4 UI) |
+| POST | `/api/v1/compare` | Similarity between two completed analyses |
 | POST | `/api/v1/export` | Reserved (later phase) |
 
 Progress events are real pipeline stages, not animations:
