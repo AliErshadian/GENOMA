@@ -111,6 +111,7 @@ pnpm --filter @genoma/web lint
 | GET | `/api/v1/anomalies/:id` | Statistical anomalies |
 | POST | `/api/v1/compare` | Similarity between two completed analyses |
 | POST | `/api/v1/mutations` | Chunk mutations between baseline and current |
+| POST | `/api/v1/galaxy` | Multi-file galaxy nodes from completed analyses |
 | POST | `/api/v1/export` | Reserved (later phase) |
 
 Progress events are real pipeline stages, not animations:

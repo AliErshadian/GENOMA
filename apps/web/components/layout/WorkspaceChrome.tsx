@@ -6,7 +6,7 @@ import { usePathname } from "next/navigation";
 import type { AnalysisSummary } from "@genoma/shared-types";
 import { listAnalyses } from "@/lib/api";
 
-const LATER = ["Galaxy", "Evolution"] as const;
+const LATER = ["Evolution"] as const;
 
 export function WorkspaceChrome({
   children,
@@ -85,6 +85,16 @@ export function WorkspaceChrome({
             }`}
           >
             Compare
+          </Link>
+          <Link
+            href="/analyze/galaxy"
+            className={`block rounded-lg px-3 py-2 font-mono text-[11px] tracking-[0.14em] ${
+              pathname === "/analyze/galaxy"
+                ? "bg-white/5 text-cyan"
+                : "text-core/70 hover:text-core"
+            }`}
+          >
+            Galaxy
           </Link>
           {LATER.map((label) => (
             <span

@@ -24,8 +24,9 @@ use tower_http::trace::TraceLayer;
 use crate::config::AppConfig;
 use crate::rate::rate_middleware;
 use crate::routes::{
-    compare_analyses, create_analysis, create_demo, detect_mutations, get_analysis, get_anomalies,
-    get_dna, health, list_analyses, list_demos, not_implemented, progress_latest, progress_sse,
+    compare_analyses, create_analysis, create_demo, detect_mutations, galaxy, get_analysis,
+    get_anomalies, get_dna, health, list_analyses, list_demos, not_implemented, progress_latest,
+    progress_sse,
 };
 use crate::state::AppState;
 
@@ -55,6 +56,7 @@ pub fn app(state: AppState) -> Router {
         .route("/api/v1/anomalies/{id}", get(get_anomalies))
         .route("/api/v1/compare", post(compare_analyses))
         .route("/api/v1/mutations", post(detect_mutations))
+        .route("/api/v1/galaxy", post(galaxy))
         .route("/api/v1/export", post(not_implemented))
         .route("/api/v1/evolution/{id}", get(not_implemented))
         .layer(DefaultBodyLimit::max(max))

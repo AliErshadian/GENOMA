@@ -122,6 +122,25 @@ export interface MutationsResponse {
   mutations: Mutation[];
 }
 
+export interface GalaxyRequest {
+  analysis_ids: string[];
+}
+
+export interface GalaxyNode {
+  id: string;
+  name: string;
+  size_bytes: number;
+  entropy: number;
+  complexity: number;
+  repetition: number;
+  chunk_count: number;
+  generator_version: string;
+}
+
+export interface GalaxyResponse {
+  nodes: GalaxyNode[];
+}
+
 export interface FileSummary {
   entropy: number;
   complexity: number;

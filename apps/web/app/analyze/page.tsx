@@ -19,6 +19,7 @@ function AnalyzeInner() {
   const params = useSearchParams();
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [queueStatus, setQueueStatus] = useState<string | null>(null);
   const [demos, setDemos] = useState<string[]>([]);
   const [chunkSize, setChunkSize] = useState(1024 * 1024);
   const [level, setLevel] = useState("BALANCED");
@@ -32,15 +33,16 @@ function AnalyzeInner() {
   useEffect(() => {
     const demo = params.get("demo");
     if (demo) {
-      void run(() => startDemo(demo, { chunkSize, level }));
+      void runSingle(() => startDemo(demo, { chunkSize, level }));
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [params]);
 
-  async function run(job: () => Promise<{ id: string }>) {
+  async function runSingle(job: () => Promise<{ id: string }>) {
     try {
       setBusy(true);
       setError(null);
+      setQueueStatus(null);
       const created = await job();
       router.push(`/analyze/${created.id}`);
     } catch (err) {
@@ -49,12 +51,42 @@ function AnalyzeInner() {
     }
   }
 
+  async function runQueue(files: File[]) {
+    if (files.length === 0) return;
+    if (files.length === 1) {
+      const file = files[0];
+      if (file) void runSingle(() => uploadFile(file, { chunkSize, level }));
+      return;
+    }
+    try {
+      setBusy(true);
+      setError(null);
+      const ids: string[] = [];
+      for (let i = 0; i < files.length; i += 1) {
+        const file = files[i];
+        if (!file) continue;
+        setQueueStatus(`Uploading ${i + 1} / ${files.length}: ${file.name}`);
+        const created = await uploadFile(file, { chunkSize, level });
+        ids.push(created.id);
+      }
+      setQueueStatus(`Queued ${ids.length} analyses`);
+      router.push(`/analyze/galaxy?ids=${ids.join(",")}`);
+    } catch (err) {
+      setBusy(false);
+      setQueueStatus(null);
+      setError(err instanceof Error ? err.message : "Batch analysis failed");
+    }
+  }
+
   return (
     <WorkspaceChrome>
       <div className="flex h-full items-center justify-center px-6">
         <div className="w-full max-w-xl">
           <p className="mb-6 font-mono text-[11px] tracking-[0.28em] text-core/50">ANALYSIS</p>
-          <DropZone onFile={(file) => void run(() => uploadFile(file, { chunkSize, level }))} />
+          <DropZone
+            onFile={(file) => void runSingle(() => uploadFile(file, { chunkSize, level }))}
+            onFiles={(files) => void runQueue(files)}
+          />
           <div className="mt-4 flex flex-wrap gap-3 font-mono text-[11px] text-core/55">
             <label className="flex items-center gap-2">
               Chunk
@@ -92,7 +124,7 @@ function AnalyzeInner() {
                     key={name}
                     type="button"
                     disabled={busy}
-                    onClick={() => void run(() => startDemo(name, { chunkSize, level }))}
+                    onClick={() => void runSingle(() => startDemo(name, { chunkSize, level }))}
                     className="rounded-full border border-white/10 px-3 py-1 font-mono text-[11px] text-core/70 hover:text-core"
                   >
                     {name}
@@ -102,7 +134,10 @@ function AnalyzeInner() {
             </div>
           ) : null}
           {error ? <p className="mt-4 font-mono text-xs text-anomaly">{error}</p> : null}
-          {busy ? <p className="mt-4 font-mono text-xs text-cyan">Starting analysis…</p> : null}
+          {queueStatus ? <p className="mt-4 font-mono text-xs text-cyan">{queueStatus}</p> : null}
+          {busy && !queueStatus ? (
+            <p className="mt-4 font-mono text-xs text-cyan">Starting analysis…</p>
+          ) : null}
         </div>
       </div>
     </WorkspaceChrome>
