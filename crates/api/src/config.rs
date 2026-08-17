@@ -97,9 +97,9 @@ impl AppConfig {
                 pi_base_offset: 0,
                 generator_version: genoma_core::GENERATOR_VERSION.to_string(),
             },
-            rate_limit_per_minute: env_or("GENOMA_RATE_LIMIT_PER_MINUTE", "30")
+            rate_limit_per_minute: env_or("GENOMA_RATE_LIMIT_PER_MINUTE", "120")
                 .parse()
-                .unwrap_or(30),
+                .unwrap_or(120),
         }
     }
 

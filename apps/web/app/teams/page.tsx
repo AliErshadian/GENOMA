@@ -59,7 +59,7 @@ export default function TeamsPage() {
         setMembers([]);
         setAnalyses([]);
       });
-  }, [selectedId]);
+  }, [selectedId, hasToken]);
 
   async function onCreate(event: FormEvent) {
     event.preventDefault();

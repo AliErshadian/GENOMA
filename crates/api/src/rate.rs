@@ -40,8 +40,12 @@ impl RateGate {
     }
 }
 
+fn skip_rate_limit(path: &str) -> bool {
+    path == "/api/v1/health" || path.ends_with("/progress")
+}
+
 pub async fn rate_middleware(State(state): State<AppState>, request: Request, next: Next) -> impl IntoResponse {
-    if !state.rate.allow() {
+    if !skip_rate_limit(request.uri().path()) && !state.rate.allow() {
         return ApiError::new(
             StatusCode::TOO_MANY_REQUESTS,
             "rate_limited",

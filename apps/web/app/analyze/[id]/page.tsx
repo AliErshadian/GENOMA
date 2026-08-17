@@ -31,22 +31,38 @@ export default function AnalysisWorkspacePage() {
   const [layers, setLayers] = useState<VizLayers>(DEFAULT_LAYERS);
 
   useEffect(() => {
+    setSummary(null);
+    setDna(null);
+    setAnomalies([]);
+    setMutations([]);
+    setSelected(null);
+    setShowComplete(true);
     void getAnalysis(id).then(setSummary).catch(() => undefined);
   }, [id]);
 
   useEffect(() => {
+    if (dna) return;
     if (progress?.stage !== "COMPLETE" && summary?.status !== "COMPLETE") return;
+    let cancelled = false;
     void (async () => {
-      const [next, fingerprint, found] = await Promise.all([
-        getAnalysis(id),
-        getDna(id),
-        getAnomalies(id),
-      ]);
-      setSummary(next);
-      setDna(fingerprint);
-      setAnomalies(found);
+      try {
+        const [next, fingerprint, found] = await Promise.all([
+          getAnalysis(id),
+          getDna(id),
+          getAnomalies(id),
+        ]);
+        if (cancelled) return;
+        setSummary(next);
+        setDna(fingerprint);
+        setAnomalies(found);
+      } catch {
+        /* keep the progress view; do not crash the workspace on 429 */
+      }
     })();
-  }, [id, progress?.stage, summary?.status]);
+    return () => {
+      cancelled = true;
+    };
+  }, [id, dna, progress?.stage, summary?.status]);
 
   useEffect(() => {
     void listAnalyses()

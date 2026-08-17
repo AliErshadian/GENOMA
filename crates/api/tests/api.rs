@@ -1,4 +1,5 @@
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
+use std::sync::Once;
 use std::time::Duration;
 
 use axum::body::Body;
@@ -12,17 +13,67 @@ fn workspace_root() -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../..")
 }
 
-fn ensure_demo_evolve_repo() {
-    let repo = workspace_root().join("data/repos/demo-evolve");
-    if repo.join(".git").is_dir() || repo.join("HEAD").is_file() {
-        return;
-    }
-    let script = workspace_root().join("scripts/seed-demo-evolve.sh");
-    let status = std::process::Command::new("bash")
-        .arg(&script)
+static SEED_DEMO_EVOLVE: Once = Once::new();
+
+fn git(repo: &Path, args: &[&str]) -> std::process::ExitStatus {
+    std::process::Command::new("git")
+        .args(args)
+        .current_dir(repo)
         .status()
-        .expect("run seed-demo-evolve.sh");
-    assert!(status.success(), "failed to seed demo-evolve repo");
+        .expect("git must be installed for API integration tests")
+}
+
+fn seed_demo_evolve_repo(repo: &Path) {
+    let _ = std::fs::remove_dir_all(repo);
+    std::fs::create_dir_all(repo).expect("create demo-evolve repo dir");
+
+    assert!(git(repo, &["init", "-q"]).success(), "git init failed");
+    assert!(
+        git(repo, &["config", "user.email", "genoma@local"]).success(),
+        "git config user.email failed"
+    );
+    assert!(
+        git(repo, &["config", "user.name", "GENOMA"]).success(),
+        "git config user.name failed"
+    );
+
+    let v1 = "GENOMA evolve seed v1\nstable structure line\n";
+    std::fs::write(repo.join("sample.txt"), v1).expect("write sample.txt v1");
+    assert!(git(repo, &["add", "sample.txt"]).success(), "git add v1 failed");
+    assert!(
+        git(repo, &["commit", "-q", "-m", "v1: seed structure"]).success(),
+        "git commit v1 failed"
+    );
+
+    let v2 = "GENOMA evolve seed v2\nstable structure line\nadded entropy noise abc123xyz\nmore byte diversity !@#$%\n";
+    std::fs::write(repo.join("sample.txt"), v2).expect("write sample.txt v2");
+    assert!(git(repo, &["add", "sample.txt"]).success(), "git add v2 failed");
+    assert!(
+        git(repo, &["commit", "-q", "-m", "v2: diversify content"]).success(),
+        "git commit v2 failed"
+    );
+
+    let v3 = "GENOMA evolve seed v3\nstable structure line\nadded entropy noise abc123xyz\nmore byte diversity !@#$%\nrepetition block XXXXXXXXXXXXXXXXXXXX\nrepetition block XXXXXXXXXXXXXXXXXXXX\n";
+    std::fs::write(repo.join("sample.txt"), v3).expect("write sample.txt v3");
+    assert!(git(repo, &["add", "sample.txt"]).success(), "git add v3 failed");
+    assert!(
+        git(
+            repo,
+            &["commit", "-q", "-m", "v3: introduce repetition"],
+        )
+        .success(),
+        "git commit v3 failed"
+    );
+}
+
+fn ensure_demo_evolve_repo() {
+    SEED_DEMO_EVOLVE.call_once(|| {
+        let repo = workspace_root().join("data/repos/demo-evolve");
+        if repo.join(".git").is_dir() || repo.join("HEAD").is_file() {
+            return;
+        }
+        seed_demo_evolve_repo(&repo);
+    });
 }
 
 async fn test_app() -> axum::Router {

@@ -18,31 +18,51 @@ export function useAnalysisProgress(id: string | null) {
     let cancelled = false;
     let source: EventSource | null = null;
     let timer: number | undefined;
+    let sseAlive = false;
+    let stopped = false;
 
-    const apply = (next: ProgressEvent) => {
-      if (!cancelled) setEvent(next);
+    setEvent(null);
+
+    const stop = () => {
+      if (stopped) return;
+      stopped = true;
+      source?.close();
+      source = null;
+      if (timer !== undefined) {
+        window.clearInterval(timer);
+        timer = undefined;
+      }
     };
 
-    void getProgress(id).then(apply).catch(() => undefined);
+    const apply = (next: ProgressEvent) => {
+      if (cancelled) return;
+      setEvent(next);
+      if (isTerminal(next.stage)) stop();
+    };
 
     source = new EventSource(`/api/v1/analyses/${id}/progress`);
     source.onmessage = (message) => {
+      sseAlive = true;
       try {
         apply(JSON.parse(message.data) as ProgressEvent);
       } catch {
         /* ignore malformed frames */
       }
     };
+    source.onerror = () => {
+      sseAlive = false;
+    };
+
+    void getProgress(id).then(apply).catch(() => undefined);
 
     timer = window.setInterval(() => {
-      if (isTerminal(eventRef.current?.stage)) return;
+      if (stopped || isTerminal(eventRef.current?.stage) || sseAlive) return;
       void getProgress(id).then(apply).catch(() => undefined);
-    }, 1000);
+    }, 4000);
 
     return () => {
       cancelled = true;
-      source?.close();
-      if (timer) window.clearInterval(timer);
+      stop();
     };
   }, [id]);
 
